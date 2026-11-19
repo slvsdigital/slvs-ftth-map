@@ -145,6 +145,14 @@ tr.click td{cursor:pointer}
 .ts .tx{padding:6px 0;font-size:13px;color:#d6d8db;line-height:1.45}
 .chip2{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:18px;background:#3a3b40;color:#fff;padding:6px 11px;margin:3px;font-weight:700;font-size:13px}
 .chip2.on{outline:3px solid var(--acc)}
+.st3{display:flex;gap:3px;flex:none}
+.st3 button{border:0;border-radius:4px;padding:7px 9px;font-weight:800;font-size:12px;background:#3a3b40;color:#9aa0a6;min-width:34px}
+.st3 button.on.w{background:#2e7d32;color:#fff}.st3 button.on.s{background:#546e7a;color:#fff}.st3 button.on.f{background:#c62828;color:#fff}
+.crow.w .nm{color:#b9f6ca}.crow.f .nm{color:#ff8a80;text-decoration:line-through}
+.crow .lbl{flex:1;min-width:0;padding:6px 8px;font-size:13px}
+.crow .nmw{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.legend{font-size:11.5px;color:var(--mut);margin:2px 0 4px}
+.log{font-size:12.5px;color:#d6d8db;border-left:3px solid #ff7043;padding:2px 8px;margin:4px 0}
 .cdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;border:1px solid #fff8}
 /* drawer */
 #scrim{position:fixed;inset:0;background:#0009;z-index:1400;display:none}
@@ -228,6 +236,7 @@ tr.click td{cursor:pointer}
 const TYPES={
   olt:  {label:'OLT / Source',  short:'OLT',    color:'#e53935',icon:'⚡',pre:'OLT-'},
   sw:   {label:'Switch / SFP source',short:'Switch',color:'#ff7043',icon:'⇄',pre:'SW-'},
+  liu:  {label:'LIU / ODF patch panel',short:'LIU',color:'#3949ab',icon:'▤',pre:'LIU-'},
   pole: {label:'Route point / Pole',short:'Pole',color:'#607d8b',icon:'•',pre:'P-'},
   joint:{label:'Joint / Splice',short:'Joint',  color:'#76b900',icon:'✚',pre:'Joint-'},
   fbt:  {label:'FBT Coupler',   short:'Coupler',color:'#1e88e5',icon:'C',pre:'CPL-'},
@@ -244,20 +253,31 @@ const FIBER=[['Blue','#1e64ff'],['Orange','#ff8a00'],['Green','#2e9e3e'],['Brown
 const FCOL=Object.fromEntries(FIBER);
 const CORES=[1,2,4,6,12,24];
 const SRC=new Set(['olt','sw']);
+const LIU_P=[6,12,24];
 const LIGHT=['White','Yellow','Natural','Aqua','Rose','Slate'];
 const coreCol=i=>FIBER[i%12][1];
 function coreLabel(i,cores){if(i==null)return '';const c=FIBER[i%12][0];return 'Core '+(i+1)+' '+c+((cores||0)>12?' (tube '+(i<12?'1 Blue':'2 Orange')+')':'');}
 function wk(n){const w=Array.isArray(n.work)?n.work:(n.core!=null?[n.core]:[]);return w.filter(i=>i<(n.cores||0)).sort((a,b)=>a-b);}
 function workText(n){const w=wk(n);return w.length?w.map(i=>(i+1)+' '+FIBER[i%12][0]).join(', '):'';}
-function cableText(n){if(!n.cores)return '';const w=wk(n);return n.cores+'F'+(w.length?' · working '+w.length+'/'+n.cores+': '+workText(n):' · no working core');}
-function coreList(cores,work,attr){
-  let h='<div class="clist">';
+function cableText(n){if(!n.cores)return '';const w=wk(n),b=bad(n);return n.cores+'F'+(w.length?' · working '+w.length+'/'+n.cores+': '+workText(n):' · no working core')+(b.length?' · FAULTY: '+b.map(i=>(i+1)+' '+FIBER[i%12][0]).join(', '):'');}
+function bad(n){return (Array.isArray(n.bad)?n.bad:[]).filter(i=>i<(n.cores||0)).sort((a,b)=>a-b);}
+function stOf(o,i){return (o.bad||[]).includes(i)?'f':(o.work||[]).includes(i)?'w':'s';}
+function setSt(o,i,v){o.work=(o.work||[]).filter(x=>x!==i);o.bad=(o.bad||[]).filter(x=>x!==i);if(v==='w')o.work.push(i);if(v==='f')o.bad.push(i);o.work.sort((a,b)=>a-b);o.bad.sort((a,b)=>a-b);}
+function stCount(o,n){const w=(o.work||[]).filter(i=>i<n).length,f=(o.bad||[]).filter(i=>i<n).length;return `<b style="color:#b9f6ca">${w} working</b> · ${n-w-f} spare · <b style="color:#ff8a80">${f} faulty</b>`;}
+function coreList(cores,o,attr,labels){
+  let h='<div class="legend">W = working · S = spare · F = faulty / damaged</div><div class="clist">';
   for(let i=0;i<cores;i++){
-    if(cores>12&&i%12===0)h+=`<div class="thd"><span class="cdot" style="background:${FIBER[i/12][1]}"></span>Tube ${i/12+1} – ${FIBER[i/12][0]}</div>`;
-    const on=work.includes(i);
-    h+=`<div class="crow${on?' w':''}"><span class="sw" style="background:${coreCol(i)}"></span><span class="no">${i+1}</span><span class="nm">${FIBER[i%12][0]}</span><label class="tg"><input type="checkbox" ${attr}="${i}" ${on?'checked':''}><i></i><span>Working</span></label></div>`;
+    if(cores>12&&i%12===0)h+=`<div class="thd"><span class="cdot" style="background:${FIBER[i/12][1]}"></span>${labels?'Ports':'Tube'} ${i/12+1} – ${FIBER[i/12][0]}</div>`;
+    const st=stOf(o,i);
+    const nm=`<span class="nm">${FIBER[i%12][0]}</span>`;
+    h+=`<div class="crow ${st}"><span class="sw" style="background:${coreCol(i)}"></span><span class="no">${i+1}</span>${labels?`<div class="nmw">${nm}<input class="lbl" data-lbl="${i}" placeholder="goes to…" value="${esc(labels[i]||'')}"></div>`:nm}
+      <div class="st3">${['w','s','f'].map(v=>`<button ${attr}="${i}" data-v="${v}" class="${v}${st===v?' on':''}">${v.toUpperCase()}</button>`).join('')}</div></div>`;
   }
   return h+'</div>';
+}
+function bindCoreList(attr,o,after){
+  document.querySelectorAll(`[${attr}]`).forEach(b=>b.onclick=()=>{const i=+b.getAttribute(attr);setSt(o,i,b.dataset.v);
+    const row=b.closest('.crow');row.className='crow '+b.dataset.v;row.querySelectorAll('.st3 button').forEach(x=>x.classList.toggle('on',x===b));if(after)after();});
 }
 const PALETTE=['#1e88e5','#00acc1','#00897b','#76b900','#8bc34a','#cddc39','#fdd835','#fb8c00','#e53935','#d81b60','#8e24aa','#5e35b1','#6d4c41','#607d8b','#212121'];
 const DEF={oltPower:5,swPower:0,wl:'1490',lossKm:0.28,spliceLoss:0.1,connLoss:0.5,sens:-27,overload:-8,margin:3,recInt:20,recAcc:30,showLabels:true,showLen:false,showCable:true,defCores:12,mapType:'street'};
@@ -305,7 +325,7 @@ function proj(p,a,b){const k=Math.cos(a.lat*Math.PI/180),ax=a.lng*k,ay=a.lat,dx=
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2600);}
 function fbtParts(r){const p=String(r||'50/50').split('/').map(Number);return [p[0]||50,p[1]||50];}
 function fbtLoss(n,port){const i=port?1:0,o=i?n.l2:n.l1;if(o!=null&&o!==''&&isFinite(+o))return +o;const t=FBT_TABLE[n.ratio];if(t)return t[i];return -10*Math.log10(fbtParts(n.ratio)[i]/100)+0.3;}
-function nodeLoss(n,port){const s=S.set;switch(n.type){case 'olt':case 'sw':return s.connLoss;case 'joint':return num(n.loss,s.spliceLoss);case 'plc':return num(n.loss,PLC[n.ratio]||0);case 'fbt':return fbtLoss(n,port);case 'ont':return s.connLoss;default:return 0;}}
+function nodeLoss(n,port){const s=S.set;switch(n.type){case 'olt':case 'sw':return s.connLoss;case 'liu':return num(n.loss,s.connLoss);case 'joint':return num(n.loss,s.spliceLoss);case 'plc':return num(n.loss,PLC[n.ratio]||0);case 'fbt':return fbtLoss(n,port);case 'ont':return s.connLoss;default:return 0;}}
 function ports(n){if(n.type==='fbt')return 2;if(n.type==='plc')return parseInt(String(n.ratio).split('x')[1])||2;return 0;}
 function portLabel(p,port){if(!p)return '';if(p.type==='fbt'){const f=fbtParts(p.ratio);return 'Port'+(port?2:1)+' '+(port?f[1]:f[0])+'%';}if(p.type==='plc')return 'Port '+((port||0)+1);return '';}
 function status(rx){if(rx==null)return 'none';const s=S.set;if(rx>s.overload)return 'high';if(rx<s.sens)return 'low';if(rx<s.sens+s.margin)return 'warn';return 'ok';}
@@ -373,7 +393,7 @@ function render(){
       L.polyline(ll,{weight:26,opacity:0}).addTo(lineLayer).on('click',e=>{L.DomEvent.stop(e);onLine(n,e.latlng);});return;}
     const lc=on?'#ffd600':(n.cores&&wk(n).length?coreCol(wk(n)[0]):(c&&c.pin==null?'#90a4ae':'#00b8d4'));
     const ln=L.polyline(ll,{color:lc,weight:on?6:4,opacity:.95,interactive:false}).addTo(lineLayer);
-    const tt=[];if(S.set.showCable&&n.cores)tt.push(n.cores+'F'+(wk(n).length?' ('+wk(n).length+'W)':''));if(S.set.showLen&&c)tt.push(fmtD(c.seg)+(n.len!=null?'*':''));
+    const tt=[];if(S.set.showCable&&n.cores)tt.push(n.cores+'F'+(wk(n).length?' ('+wk(n).length+'W'+(bad(n).length?' '+bad(n).length+'✗':'')+')':(bad(n).length?' ('+bad(n).length+'✗)':'')));if(S.set.showLen&&c)tt.push(fmtD(c.seg)+(n.len!=null?'*':''));
     if(tt.length)ln.bindTooltip(tt.join(' · '),{permanent:true,direction:'center',className:'llbl'});
     L.polyline(ll,{weight:26,opacity:0}).addTo(lineLayer).on('click',e=>{L.DomEvent.stop(e);onLine(n,e.latlng);});
   });
@@ -413,6 +433,46 @@ function onLine(child,ll){
   if(tool==='cut'){cutDialog(child,ll);return;}
   fiberDlg(child,ll);
 }
+function changeCoreDlg(child){
+  const p=R.by[child.parent];if(!p||!child.cores)return;
+  const w=wk(child),b=bad(child);let from=w[0],to=null;
+  const spare=()=>Array.from({length:child.cores},(_,i)=>i).filter(i=>!wk(child).includes(i)&&!bad(child).includes(i));
+  const chip=(i,on,attr)=>`<button class="chip2${on?' on':''}" ${attr}="${i}"><span class="cdot" style="background:${coreCol(i)};margin:0"></span>${i+1} ${FIBER[i%12][0]}</button>`;
+  const draw=()=>{
+    const sp=spare(),inSec=section(child).length;
+    const oc=from!=null?FIBER[from%12][0]:'',nc=to!=null?FIBER[to%12][0]:'';
+    modal(`<h3>🔁 Change core</h3><p class="muted">Fiber ${esc(p.name)} → ${esc(child.name)} · ${child.cores}F. Use this when a working core is damaged between two points and you move the line to a spare core.</p>
+     <label class="f">Damaged core (now working)</label><div>${(w.length?w:Array.from({length:child.cores},(_,i)=>i)).map(i=>chip(i,i===from,'data-cf')).join('')}</div>
+     <label class="f">Change to spare core</label><div>${sp.length?sp.map(i=>chip(i,i===to,'data-ct')).join(''):'<span class="muted">No spare core in this cable</span>'}</div>
+     ${inSec?`<label class="mitem" style="border:0"><input type="checkbox" id="cSec" checked style="width:20px;height:20px;flex:none;accent-color:var(--acc)"><span>Whole cable section (${inSec+1} segments through route points)</span></label>`:''}
+     <label class="mitem" style="border:0"><input type="checkbox" id="cSpl" checked style="width:20px;height:20px;flex:none;accent-color:var(--acc)"><span>Update joint splices / LIU ports at both ends</span></label>
+     <label class="f">Reason / note</label><input id="cNote" placeholder="e.g. core broken near pole 12">
+     ${from!=null&&to!=null?`<div class="box" style="margin-top:10px;background:#35363b">Result: <b style="color:#ff8a80">${from+1} ${oc}</b> → faulty, <b style="color:#b9f6ca">${to+1} ${nc}</b> → working.<br><span class="muted">Start joint: ${oc} to ${nc.toLowerCase()} · end joint: ${nc} to ${oc.toLowerCase()} (rest of the route stays on ${oc}).</span></div>`:''}
+     <div class="mfoot"><button data-close>CANCEL</button><button id="cOk" style="color:var(--acc)" ${from==null||to==null?'disabled':''}>CHANGE CORE</button></div>`);
+    document.querySelectorAll('[data-cf]').forEach(x=>x.onclick=()=>{from=+x.dataset.cf;if(to===from)to=null;draw();});
+    document.querySelectorAll('[data-ct]').forEach(x=>x.onclick=()=>{to=+x.dataset.ct;draw();});
+    $('cOk').onclick=()=>{if(from==null||to==null)return;doChangeCore(child,from,to,$('cSec')?$('cSec').checked:false,$('cSpl').checked,$('cNote').value);};
+  };
+  draw();
+}
+function doChangeCore(child,from,to,whole,spl,note){
+  const segs=[child].concat(whole?section(child):[]).filter(x=>x.cores&&to<x.cores);
+  const ids=new Set(segs.map(x=>x.id));
+  segs.forEach(x=>{const o={work:wk(x),bad:bad(x)};setSt(o,from,'f');setSt(o,to,'w');x.work=o.work;x.bad=o.bad;delete x.core;});
+  const oc=FIBER[from%12][0],nc=FIBER[to%12][0],msg=[];
+  if(spl){
+    let top=null;segs.forEach(x=>{const p=R.by[x.parent];if(p&&!ids.has(p.id))top=p;});
+    const bottoms=segs.filter(x=>!(R.kids[x.id]||[]).some(k=>ids.has(k.id)));
+    if(top){
+      if(top.type==='joint'){top.splices=top.splices||[];const sp=top.splices.find(z=>z.b===oc);if(sp)sp.b=nc;else top.splices.push({a:oc,b:nc});msg.push(top.name+': '+(sp?sp.a:oc)+' to '+nc.toLowerCase());}
+      else if(top.type==='liu'){const o=top.lport||(top.lport={work:[],bad:[],lbl:[]});if(to<(top.lp||12)){o.lbl=o.lbl||[];o.lbl[to]=o.lbl[from]||o.lbl[to]||'';setSt(o,from,'f');setSt(o,to,'w');msg.push(top.name+': patch moved to port '+(to+1));}}
+    }
+    bottoms.forEach(bn=>{if(bn.type==='joint'){bn.splices=bn.splices||[];const sp=bn.splices.find(z=>z.a===oc);if(sp)sp.a=nc;else bn.splices.push({a:nc,b:oc});msg.push(bn.name+': '+nc+' to '+(sp?sp.b:oc).toLowerCase());}});
+  }
+  const t=`Core ${from+1} ${oc} → ${to+1} ${nc}`+(note?' – '+note:'')+(msg.length?' ['+msg.join('; ')+']':'');
+  (child.log=child.log||[]).push({d:new Date().toISOString(),t});
+  closeModal();sel=child.id;render();toast(`Changed ${oc} → ${nc} on ${segs.length} segment(s)`);
+}
 function coreGrid(cores,cur){let h='';for(let t=0;t<Math.ceil(cores/12);t++){if(cores>12)h+=`<div class="muted">Tube ${t+1} – ${FIBER[t][0]}</div>`;h+='<div class="cores">';
   for(let i=t*12;i<Math.min(cores,t*12+12);i++)h+=`<button data-core="${i}" class="${cur===i?'on':''}" style="background:${coreCol(i)};color:${LIGHT.includes(FIBER[i%12][0])?'#000':'#fff'}">${i+1}</button>`;h+='</div>';}return h;}
 function section(child){
@@ -423,31 +483,32 @@ function section(child){
 }
 function fiberDlg(child,ll){
   const p=R.by[child.parent];if(!p)return;
-  const f={cores:child.cores||null,work:wk(child),len:child.len==null?'':child.len},gl=hav(p,child);
+  const f={cores:child.cores||null,work:wk(child),bad:bad(child),len:child.len==null?'':child.len},gl=hav(p,child);
   const draw=()=>{
     const c=R.C[child.id],L0=num(f.len,gl);
     modal(`<h3>Fiber ${esc(p.name)} → ${esc(child.name)}</h3>
      <div class="kv"><b>Length used</b><span>${fmtD(L0)}${f.len!==''?' (edited)':' (GPS)'}</span><b>Fiber loss</b><span>${fmtL(L0/1000*S.set.lossKm)}</span><b>Power at end</b><span>${fmtP(c&&c.pin)}</span></div>
      <label class="f">Cable cores</label><div class="seg">${CORES.map(x=>`<button data-cc="${x}" class="${f.cores===x?'on':''}">${x}F</button>`).join('')}</div>
-     ${f.cores?`<label class="f">Core colours – ${f.cores}F · working <b style="color:#b9f6ca" id="fWn">${f.work.length}</b> of ${f.cores}</label>${coreList(f.cores,f.work,'data-wk')}
-       <div class="btns" style="margin-top:0"><button class="btn" id="fWall">All working</button><button class="btn" id="fWnone">None working</button></div>`:''}
+     ${f.cores?`<label class="f">Core colours – ${f.cores}F · <span id="fWn">${stCount(f,f.cores)}</span></label>${coreList(f.cores,f,'data-cs')}
+       <div class="btns" style="margin-top:0"><button class="btn" id="fWall">All working</button><button class="btn" id="fWnone">All spare</button>${f.work.length?'<button class="btn" id="fChg" style="background:#ff7043;color:#000">🔁 Change core</button>':''}</div>`:''}
      <label class="f">Fiber length (m)</label><div class="row2"><input id="fLen" type="number" step="0.1" placeholder="${gl.toFixed(1)} (GPS)" value="${f.len}"><button class="btn" id="fGps">Use GPS ${fmtD(gl)}</button></div>
      <div class="muted">GPS straight line is ${fmtD(gl)}. Type the real cable length (slack, loops, poles) to use it for distance and loss.</div>
      <label class="mitem" style="border:0"><input type="checkbox" id="fAll" style="width:20px;height:20px;flex:none;accent-color:var(--acc)"><span>Same cable &amp; core for the whole section (through route points)</span></label>
      ${ll?mitem('✂️','Fiber cut here','Add a splice joint at this point','mCut')+mitem('➕','Add bend point here','Route point on the fiber','mPole'):''}
      <div class="mfoot"><button data-close>CANCEL</button><button id="fOk" style="color:var(--acc)">SAVE</button></div>`);
     const keep=()=>{f.len=$('fLen').value;};
-    document.querySelectorAll('[data-cc]').forEach(b=>b.onclick=()=>{keep();const v=+b.dataset.cc;f.cores=f.cores===v?null:v;f.work=f.work.filter(i=>f.cores&&i<f.cores);draw();});
-    document.querySelectorAll('[data-wk]').forEach(c=>c.onchange=()=>{const v=+c.dataset.wk;f.work=f.work.filter(i=>i!==v);if(c.checked)f.work.push(v);f.work.sort((a,b)=>a-b);c.closest('.crow').classList.toggle('w',c.checked);$('fWn').textContent=f.work.length;});
-    if($('fWall'))$('fWall').onclick=()=>{keep();f.work=Array.from({length:f.cores},(_,i)=>i);draw();};
-    if($('fWnone'))$('fWnone').onclick=()=>{keep();f.work=[];draw();};
+    document.querySelectorAll('[data-cc]').forEach(b=>b.onclick=()=>{keep();const v=+b.dataset.cc;f.cores=f.cores===v?null:v;f.work=f.work.filter(i=>f.cores&&i<f.cores);f.bad=f.bad.filter(i=>f.cores&&i<f.cores);draw();});
+    bindCoreList('data-cs',f,()=>{$('fWn').innerHTML=stCount(f,f.cores);});
+    if($('fWall'))$('fWall').onclick=()=>{keep();f.work=Array.from({length:f.cores},(_,i)=>i).filter(i=>!f.bad.includes(i));draw();};
+    if($('fWnone'))$('fWnone').onclick=()=>{keep();f.work=[];f.bad=[];draw();};
+    if($('fChg'))$('fChg').onclick=()=>{keep();save1(false);changeCoreDlg(child);};
     $('fGps').onclick=()=>{f.len='';draw();};
     if($('mCut'))$('mCut').onclick=()=>{closeModal();cutDialog(child,ll);};
     if($('mPole'))$('mPole').onclick=()=>{closeModal();insertOn(child,ll,'pole');};
-    $('fOk').onclick=()=>{keep();const set=n=>{delete n.core;if(f.cores){n.cores=f.cores;n.work=f.work.slice();}else{delete n.cores;delete n.work;}};
+    const save1=all=>{const set=n=>{delete n.core;if(f.cores){n.cores=f.cores;n.work=f.work.slice();n.bad=f.bad.slice();}else{delete n.cores;delete n.work;delete n.bad;}};
       set(child);if(f.len===''||isNaN(+f.len))delete child.len;else child.len=Math.max(0,+f.len);
-      let k=0;if($('fAll').checked)section(child).forEach(n=>{set(n);k++;});
-      closeModal();render();toast('Fiber saved'+(k?' · '+(k+1)+' segments updated':''));};
+      let k=0;if(all&&$('fAll')&&$('fAll').checked)section(child).forEach(n=>{set(n);k++;});return k;};
+    $('fOk').onclick=()=>{keep();const k=save1(true);closeModal();render();toast('Fiber saved'+(k?' · '+(k+1)+' segments updated':''));};
   };
   draw();
 }
@@ -460,7 +521,8 @@ function newNode(type,lat,lng,parent){
   if(type==='fbt')n.ratio='70/30';
   if(type==='olt')n.power=S.set.oltPower;
   if(type==='sw')n.power=S.set.swPower;
-  if(parent){if(parent.cores){n.cores=parent.cores;n.work=wk(parent);}else if(S.set.defCores){n.cores=S.set.defCores;n.work=[];}}
+  if(type==='liu'){n.lp=12;n.lport={work:[],bad:[],lbl:[]};}
+  if(parent&&!(type==='liu'&&SRC.has(parent.type))){if(parent.cores){n.cores=parent.cores;n.work=wk(parent);n.bad=bad(parent);}else if(S.set.defCores){n.cores=S.set.defCores;n.work=[];}}
   return n;
 }
 function addNode(type,lat,lng,opts){
@@ -475,7 +537,7 @@ function insertOn(child,ll,type,extra){
   const p=R.by[child.parent];if(!p)return;
   const pt=proj(ll,p,child);
   const n=newNode(type,pt.lat,pt.lng,null);n.parent=p.id;n.port=child.port||0;n.folder=child.folder;Object.assign(n,extra||{});
-  if(child.cores){n.cores=child.cores;n.work=wk(child);}
+  if(child.cores){n.cores=child.cores;n.work=wk(child);n.bad=bad(child);}
   if(child.len!=null&&child.len!==''){const L0=+child.len;n.len=+(L0*pt.t).toFixed(1);child.len=+(L0*(1-pt.t)).toFixed(1);}
   child.parent=n.id;child.port=0;S.nodes.push(n);sel=n.id;render();
   toast(n.name+' inserted · '+fmtD(R.C[n.id].seg)+' from '+p.name);return n;
@@ -569,6 +631,7 @@ function renderInfo(){
     else bits.push('In '+fmtP(c.pin),'Out '+fmtP(c.out&&c.out[0]));
     if(c.dist)bits.push(fmtD(c.dist)+' from start');
     if(p&&n.cores)bits.push(cableText(n));
+    if(n.type==='liu'){const o=n.lport||{};bits.push((n.lp||12)+' ports: '+(o.work||[]).length+' working'+((o.bad||[]).length?', '+o.bad.length+' faulty':''));}
     f=bits.join(' · ');
   }
   const desc=[n.desc,splText(n)].filter(Boolean).join('\n');
@@ -580,6 +643,8 @@ function renderInfo(){
       <b>Folder</b><span>${esc(folderName(n.folder))}</span>
       <b>GPS</b><span>${n.lat.toFixed(6)}, ${n.lng.toFixed(6)}</span>
       ${n.phone?`<b>Phone</b><span>${esc(n.phone)}</span>`:''}</div>
+      ${n.type==='liu'?liuHtml(n):''}
+      ${(n.log||[]).length?'<div class="muted" style="margin-top:8px">Core change log</div>'+n.log.slice().reverse().map(l=>`<div class="log">${fmtDate(l.d)}<br>${esc(l.t)}</div>`).join(''):''}
       ${p?'<div class="btns"><button class="btn" id="iTrace">🌈 Core trace</button><button class="btn" id="iPow">📊 Power path</button></div>':''}
       <div class="imgs" id="iImgs" style="margin-top:8px"></div>`;
   }
@@ -588,6 +653,9 @@ function renderInfo(){
   if(big){loadThumbs(n,$('iImgs'));if($('iTrace')){$('iTrace').onclick=e=>{e.stopPropagation();tracePage(n);};$('iPow').onclick=e=>{e.stopPropagation();reportPage(n);};}}
   adjust();
 }
+function liuHtml(n){const o=n.lport||{work:[],bad:[],lbl:[]},lp=n.lp||12;
+  return `<div class="muted" style="margin-top:8px">${lp}-port LIU · ${stCount(o,lp)}</div><div class="clist">`+Array.from({length:lp},(_,i)=>{const st=stOf(o,i);
+    return `<div class="crow ${st}" style="padding:4px 0"><span class="sw" style="background:${coreCol(i)};width:20px;height:20px"></span><span class="no">${i+1}</span><span class="nm">${FIBER[i%12][0]}${(o.lbl||[])[i]?` <span class="muted">– ${esc(o.lbl[i])}</span>`:''}</span><span class="tag ${st==='w'?'ok':st==='f'?'low':'none'}">${st==='w'?'WORKING':st==='f'?'FAULTY':'SPARE'}</span></div>`;}).join('')+'</div>';}
 function powerCards(n,c){
   if(n.type==='mark')return '';
   const st=S.set;
@@ -620,6 +688,7 @@ function moreMenu(n){
   modal(`<h3>${esc(n.name)}</h3>
    ${n.type!=='mark'?mitem('📊','Power path','Full loss budget from OLT to here','a1'):''}
    ${n.parent&&R.by[n.parent]?mitem('🌈','Core trace (start → here)','Core colour on every segment and joint','a9'):''}
+   ${n.parent&&R.by[n.parent]&&n.cores?mitem('🔁','Change core (faulty → spare)','Move the line to a spare core','a10'):''}
    ${n.parent&&R.by[n.parent]?mitem('〰️','Fiber cable, core & length','Fiber coming from '+esc(R.by[n.parent].name),'a8'):''}
    ${mitem('➕','Add next marker','Place a new marker connected from '+esc(n.name),'a2')}
    ${!SRC.has(n.type)&&n.type!=='mark'?mitem('🔗','Connect to…','Choose the marker this fiber comes from','a3'):''}
@@ -631,6 +700,7 @@ function moreMenu(n){
   $('a2').onclick=()=>{closeModal();startPlace('add',{});};
   if($('a8'))$('a8').onclick=()=>{closeModal();fiberDlg(n,null);};
   if($('a9'))$('a9').onclick=()=>{closeModal();tracePage(n);};
+  if($('a10'))$('a10').onclick=()=>{closeModal();changeCoreDlg(n);};
   if($('a1'))$('a1').onclick=()=>{closeModal();reportPage(n);};
   if($('a3'))$('a3').onclick=()=>{closeModal();pendingParent=n.id;hint('Tap the marker that '+esc(n.name)+' connects from');};
   $('a4').onclick=()=>{closeModal();startPlace('move',{id:n.id});};
@@ -652,6 +722,10 @@ function editPage(id,keep){
   if(ed.type==='fbt')ft=`<label class="f">Coupler ratio (Port1 / Port2)</label><select id="eRatio">${FBT.map(r=>`<option${r===ed.ratio?' selected':''}>${r}</option>`).join('')}</select>
      <div class="row2"><div><label class="f">Port1 ${fp[0]}% loss dB</label><input id="eL1" type="number" step="0.01" placeholder="${tb[0]}" value="${ed.l1==null?'':ed.l1}"></div><div><label class="f">Port2 ${fp[1]}% loss dB</label><input id="eL2" type="number" step="0.01" placeholder="${tb[1]}" value="${ed.l2==null?'':ed.l2}"></div></div>
      <div class="muted">Empty = value from the coupler loss chart.</div>`;
+  if(ed.type==='liu'){ed.lp=ed.lp||12;ed.lport=ed.lport||{work:[],bad:[],lbl:[]};
+    ft=`<label class="f">LIU ports</label><div class="seg">${LIU_P.map(x=>`<button data-lp="${x}" class="${ed.lp===x?'on':''}">${x} port</button>`).join('')}</div>
+     <label class="f">Port colours – <span id="lWn">${stCount(ed.lport,ed.lp)}</span></label>${coreList(ed.lp,ed.lport,'data-ls',ed.lport.lbl||[])}
+     <div class="muted">Port 1–12 follow the fiber colour order${ed.lp>12?'; ports 13–24 are the second tube (Orange tube), same colours':''}. Write where each port goes (customer, ONT, direction).</div>`;}
   if(ed.type==='joint')ft=`<div class="row2"><div><label class="f">Splice loss (dB)</label><input id="eLoss" type="number" step="0.01" placeholder="${S.set.spliceLoss}" value="${ed.loss==null?'':ed.loss}"></div><div><label class="f">Fiber cut joint</label><select id="eCut"><option value="0">No</option><option value="1"${ed.cut?' selected':''}>Yes</option></select></div></div>`;
   if(p&&ports(p))ft+=`<label class="f">Connected to ${esc(p.name)} on</label><select id="ePort">${Array.from({length:ports(p)},(_,i)=>`<option value="${i}"${(ed.port||0)===i?' selected':''}>${portLabel(p,i)}</option>`).join('')}</select>`;
   else if(p)ft+=`<div class="muted" style="margin-top:8px">Connected from ${esc(p.name)}</div>`;
@@ -665,8 +739,8 @@ function editPage(id,keep){
    <div class="box"><h5>FTTH item</h5><select id="eType">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===ed.type?' selected':''}>${v.label}</option>`).join('')}</select>${ft}</div>
    ${p?`<div class="box"><h5>Incoming fiber from ${esc(p.name)}</h5>
      <label class="f">Cable cores</label><div class="seg">${CORES.map(x=>`<button data-ecc="${x}" class="${ed.cores===x?'on':''}">${x}F</button>`).join('')}</div>
-     ${ed.cores?`<label class="f">Core colours – working <b style="color:#b9f6ca" id="eWn">${wk(ed).length}</b> of ${ed.cores}</label>${coreList(ed.cores,wk(ed),'data-ewk')}
-       <div class="btns" style="margin-top:0"><button class="btn" id="eWall">All working</button><button class="btn" id="eWnone">None working</button></div>`:''}
+     ${ed.cores?`<label class="f">Core colours – <span id="eWn">${stCount(ed,ed.cores)}</span></label>${coreList(ed.cores,ed,'data-es')}
+       <div class="btns" style="margin-top:0"><button class="btn" id="eWall">All working</button><button class="btn" id="eWnone">All spare</button>${wk(ed).length?'<button class="btn" id="eChg" style="background:#ff7043;color:#000">🔁 Change core</button>':''}</div>`:''}
      <label class="f">Fiber length (m) – GPS ${fmtD(hav(p,ed))}</label><input id="eLen" type="number" step="0.1" placeholder="${hav(p,ed).toFixed(1)} (GPS)" value="${ed.len==null?'':ed.len}">
      <div class="muted">Leave empty to use the GPS length.</div></div>`:''}
    <div class="box"><h5>Description</h5><textarea id="eDesc" placeholder="Location, cable, notes…">${esc(ed.desc||'')}</textarea></div>
@@ -687,16 +761,20 @@ function editPage(id,keep){
     ['l1','l2'].forEach(k=>{const e=$('e'+k.toUpperCase());if(e){if(e.value==='')delete ed[k];else ed[k]=+e.value;}});
     if($('eCut'))ed.cut=$('eCut').value==='1';
     if($('ePort'))ed.port=+$('ePort').value;
-    if(ed.cores){delete ed.core;ed.work=[...document.querySelectorAll('[data-ewk]')].filter(c=>c.checked).map(c=>+c.dataset.ewk);}
+    if(ed.cores){delete ed.core;ed.work=wk(ed);ed.bad=bad(ed);}
+    if(ed.type==='liu'){ed.lport=ed.lport||{work:[],bad:[],lbl:[]};document.querySelectorAll('[data-lbl]').forEach(x=>{ed.lport.lbl[+x.dataset.lbl]=x.value;});}
     if($('eLen')){const v=$('eLen').value;if(v===''||isNaN(+v))delete ed.len;else ed.len=Math.max(0,+v);}
     ed.lat=num($('eLat').value,ed.lat);ed.lng=num($('eLng').value,ed.lng);
     const dt=new Date(($('eDate').value||'1970-01-01')+'T'+($('eTime').value||'00:00:00'));if(!isNaN(dt)&&$('eDate').value)ed.created=dt.toISOString();};
   const redraw=()=>{grab();editPage(id,true);};
   $('eType').onchange=()=>{grab();ed.type=$('eType').value;if(ed.type==='plc'&&!PLC[ed.ratio])ed.ratio='1x8';if(ed.type==='fbt'&&!FBT_TABLE[ed.ratio])ed.ratio='70/30';if(SRC.has(ed.type)||ed.type==='mark'){ed.parent=null;}if(SRC.has(ed.type)&&ed.power==null)ed.power=ed.type==='sw'?S.set.swPower:S.set.oltPower;delete ed.loss;delete ed.l1;delete ed.l2;editPage(id,true);};
   document.querySelectorAll('[data-ecc]').forEach(b=>b.onclick=()=>{grab();const v=+b.dataset.ecc;if(ed.cores===v){delete ed.cores;delete ed.work;}else{ed.cores=v;ed.work=wk(ed);}editPage(id,true);});
-  document.querySelectorAll('[data-ewk]').forEach(c=>c.onchange=()=>{c.closest('.crow').classList.toggle('w',c.checked);$('eWn').textContent=document.querySelectorAll('[data-ewk]:checked').length;});
-  if($('eWall'))$('eWall').onclick=()=>{grab();ed.work=Array.from({length:ed.cores},(_,i)=>i);editPage(id,true);};
-  if($('eWnone'))$('eWnone').onclick=()=>{grab();ed.work=[];editPage(id,true);};
+  bindCoreList('data-es',ed,()=>{$('eWn').innerHTML=stCount(ed,ed.cores);});
+  if($('eWall'))$('eWall').onclick=()=>{grab();ed.work=Array.from({length:ed.cores},(_,i)=>i).filter(i=>!bad(ed).includes(i));editPage(id,true);};
+  if($('eWnone'))$('eWnone').onclick=()=>{grab();ed.work=[];ed.bad=[];editPage(id,true);};
+  if($('eChg'))$('eChg').onclick=()=>{grab();commitEdit(id);closePage();changeCoreDlg(R.by[id]);};
+  if(ed.type==='liu'){bindCoreList('data-ls',ed.lport,()=>{$('lWn').innerHTML=stCount(ed.lport,ed.lp||12);});
+    document.querySelectorAll('[data-lp]').forEach(b=>b.onclick=()=>{grab();ed.lp=+b.dataset.lp;editPage(id,true);});}
   if($('eRatio'))$('eRatio').onchange=()=>{grab();ed.ratio=$('eRatio').value;delete ed.loss;delete ed.l1;delete ed.l2;editPage(id,true);};
   document.querySelectorAll('[data-sa]').forEach(e=>e.onchange=()=>{ed.splices[+e.dataset.sa].a=e.value;});
   document.querySelectorAll('[data-sb]').forEach(e=>e.onchange=()=>{ed.splices[+e.dataset.sb].b=e.value;});
@@ -792,7 +870,8 @@ function traceCore(path,start){
       if(cur==null)note+=(note?' · ':'')+'core not available in this cable';
     }
     if(seg.cores&&cur!=null&&cur>=seg.cores)cur=null;
-    out.push({seg,prev,core:cur,note,work:seg.cores?wk(seg).includes(cur):null});
+    if(i>1&&prev.type==='liu'&&cur!=null){const o=prev.lport||{};note+=(note?' · ':'')+'LIU port '+(cur+1)+((o.lbl||[])[cur]?' ('+o.lbl[cur]+')':'')+(stOf(o,cur)==='f'?' FAULTY PORT':'');}
+    out.push({seg,prev,core:cur,note,work:seg.cores?wk(seg).includes(cur):null,bad:seg.cores?bad(seg).includes(cur):false});
   }
   return out;
 }
@@ -807,15 +886,16 @@ function tracePage(n,start){
   else h+=`<div class="muted">The first fiber (${esc(path[0].name)} → ${esc(first.name)}) has no cable size set. Tap that fiber line to set 1F–24F and working cores.</div>`;
   h+=`<div class="muted" style="margin-top:6px">✓ = marked working</div></div><div class="box tl">`;
   const nodeRow=(x,extra)=>`<div class="tn"><span class="ic" style="background:${pinColor(x,C[x.id])}">${TYPES[x.type].icon||''}</span><div><b>${esc(x.name)}</b> <span class="muted">${TYPES[x.type].short}${x.ratio?' '+x.ratio:''}</span>${extra||''}</div></div>`;
-  h+=nodeRow(path[0],`<div class="muted">Start (${SRC.has(path[0].type)?'source':'no power source'}) · Tx ${fmtP(C[path[0].id]&&C[path[0].id].pin)}</div>`);
-  let bad=0;
+  if(path[0].type==='liu'){const o=path[0].lport||{};h+='';}
+  h+=nodeRow(path[0],`<div class="muted">${path[0].type==='liu'?'LIU port '+(start+1)+' '+FIBER[start%12][0]+(((path[0].lport||{}).lbl||[])[start]?' – '+esc(path[0].lport.lbl[start]):'')+' · ':''}Start (${SRC.has(path[0].type)?'source':'no power source'}) · Tx ${fmtP(C[path[0].id]&&C[path[0].id].pin)}</div>`);
+  let nBad=0;
   tr.forEach((t,i)=>{
     const c=C[t.seg.id]||{},col=t.core!=null?coreCol(t.core):'#5f6368';
-    if(t.work===false)bad++;
+    if(t.work===false||t.bad)nBad++;
     h+=`<div class="ts"><div class="bar"><i style="background:${col}"></i></div><div class="tx">
       ${t.note?`<div style="color:#ffe082">↳ ${esc(t.note)}</div>`:''}
       <b style="color:#fff">${t.core!=null?`<span class="cdot" style="background:${col}"></span>Core ${t.core+1} ${FIBER[t.core%12][0]}${t.seg.cores>12?' (tube '+(t.core<12?'1':'2')+')':''}`:'Core unknown'}</b>
-      ${t.work===true?' <span class="tag ok">working</span>':t.work===false?' <span class="tag warn">not marked working</span>':''}<br>
+      ${t.bad?' <span class="tag low">FAULTY</span>':t.work===true?' <span class="tag ok">working</span>':t.work===false?' <span class="tag warn">not marked working</span>':''}<br>
       ${t.seg.cores?t.seg.cores+'F cable':'cable not set'} · ${fmtD(c.seg)}${t.seg.len!=null?' (edited)':''} · ${fmtD(c.dist)} from start
       ${wk(t.seg).length?`<br>Working: ${wk(t.seg).map(k=>`<span class="cdot" style="background:${coreCol(k)}"></span>${k+1}`).join(' ')}`:''}
     </div></div>`;
@@ -824,7 +904,7 @@ function tracePage(n,start){
     h+=nodeRow(x,`<div class="muted">${pw}${last&&t.core!=null?` · arrives on <b style="color:#fff">${t.core+1} ${FIBER[t.core%12][0]}</b>`:''}${x.type==='joint'&&(x.splices||[]).length&&!last?' · '+x.splices.length+' splices saved':''}</div>`);
   });
   h+=`</div><div class="box"><div class="kv"><b>Total fiber</b><span>${fmtD(C[n.id].dist)}</span><b>Segments</b><span>${tr.length}</span><b>Core at end</b><span>${tr[tr.length-1].core!=null?(tr[tr.length-1].core+1)+' '+FIBER[tr[tr.length-1].core%12][0]:'—'}</span></div>
-   ${bad?`<div class="muted" style="margin-top:6px;color:#ffe082">${bad} segment(s): this core is not switched on as Working.</div>`:''}
+   ${nBad?`<div class="muted" style="margin-top:6px;color:#ffe082">${nBad} segment(s): this core is faulty or not marked Working. Use 🔁 Change core on that fiber.</div>`:''}
    <div class="btns"><button class="btn p" id="trMap">🗺 Show on map</button><button class="btn" id="trCopy">⧉ Copy</button></div></div>`;
   openPage({title:'Core trace → '+esc(n.name),body:h});
   document.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>tracePage(n,+b.dataset.st));
@@ -884,6 +964,8 @@ function help(){
   <p><b>Coupler / splitter power:</b> tap a coupler – you see input power and the output of Port1 and Port2. For the next marker, choose which port it uses in ✏️ Edit.</p>
   <p><b>Fiber cut:</b> press ✂️ on the left and tap the fiber line at the cut, or stand at the cut and press <b>At my GPS</b>. A joint is inserted and its splice loss is added. In Edit you can record colour splices (Blue to blue, White to blue…).</p>
   <p><b>Cable &amp; cores:</b> tap a fiber line (or ⋮ → Fiber cable, core &amp; length) and choose 1F, 2F, 4F, 6F, 12F or 24F. All core colours are listed below – switch <b>Working</b> on beside each core in use (e.g. 4F with cores 1 and 2 working). The line is drawn in the first working core colour and shows e.g. “4F (2W)”. Type the real cable length if it differs from the GPS line – distance and loss use it.</p>
+  <p><b>LIU:</b> add an <b>LIU / ODF</b> at the start (6, 12 or 24 port). Each port shows its fiber colour; set W / S / F and write where it goes.</p>
+  <p><b>Faulty core:</b> on any fiber set each core W (working), S (spare) or F (faulty). If a working core (e.g. Blue) is damaged, use <b>🔁 Change core</b> and pick a spare (e.g. Orange). The app marks Blue faulty, Orange working, and updates the joints at both ends (Blue to orange … orange to blue) so the core trace follows the new core. Every change is saved in the change log.</p>
   <p><b>Core trace:</b> select the end point (e.g. ONT) → ⋮ → <b>Core trace</b>. It follows the core from the start through every joint (using the colour splices saved in each joint, e.g. Blue to orange) and shows the core colour on every segment. <b>Show on map</b> colours the route.</p>
   <p><b>Walk &amp; record:</b> select the start marker, press ⏺ and walk the cable route.</p>
   <p><b>Distance start → end:</b> each marker shows its distance from the OLT. 📏 measures between any two points.</p>
@@ -910,7 +992,7 @@ function drawer(){
    <div class="dsec">Help &amp; Feedback</div>
    <div class="ditem" id="dSet"><span class="ic">⚙</span><span class="tx">Settings</span></div>
    <div class="ditem" id="dHelp"><span class="ic">❓</span><span class="tx">Help</span></div>
-   <div class="ditem" id="dAbout"><span class="ic">ⓘ</span><span class="tx">About<small>SLVS FTTH Map 2.4</small></span></div>`;
+   <div class="ditem" id="dAbout"><span class="ic">ⓘ</span><span class="tx">About<small>SLVS FTTH Map 2.5</small></span></div>`;
   $('drawer').classList.add('show');$('scrim').classList.add('show');
   const go=f=>()=>{closeDrawer();f();};
   $('dBk').onclick=go(backupMenu);$('dLast').onclick=go(backupMenu);
@@ -921,7 +1003,7 @@ function drawer(){
   document.querySelectorAll('[data-fr]').forEach(c=>c.onclick=()=>folderMenu(c.dataset.fr));
   $('dAddF').onclick=()=>folderName_dlg(null);
   $('dSum').onclick=go(summaryPage);$('dChart').onclick=go(chart);$('dCore').onclick=go(coreChart);$('dSet').onclick=go(settingsPage);$('dHelp').onclick=go(help);
-  $('dAbout').onclick=go(()=>modal(`<h3>SLVS FTTH Map</h3><p>Version 2.4</p><p class="muted">FTTH route mapping with GPS, fiber distance, FBT coupler / PLC splitter power budget and fiber-cut joints.</p><p class="muted">Maps © OpenStreetMap contributors, imagery © Esri.</p><div class="mfoot"><button data-close>OK</button></div>`));
+  $('dAbout').onclick=go(()=>modal(`<h3>SLVS FTTH Map</h3><p>Version 2.5</p><p class="muted">FTTH route mapping with GPS, fiber distance, FBT coupler / PLC splitter power budget and fiber-cut joints.</p><p class="muted">Maps © OpenStreetMap contributors, imagery © Esri.</p><div class="mfoot"><button data-close>OK</button></div>`));
 }
 function closeDrawer(){$('drawer').classList.remove('show');$('scrim').classList.remove('show');}
 $('scrim').onclick=closeDrawer;
@@ -1055,10 +1137,10 @@ function exportFile(name,text,mime){
 }
 function copy(t){if(window.Android&&Android.copy){Android.copy(t);return;}if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>toast('Copied'),()=>toast('Copy failed'));}
 function csv(){
-  const h=['Name','Type','Ratio','Folder','Latitude','Longitude','Connected from','Port','Cable','Working cores','Length source','Segment m','From start m','Input dBm','Output dBm','Output2 dBm','ONT Rx dBm','Status','Cut joint','Splices','Phone','Description','Created'];
+  const h=['Name','Type','Ratio','Folder','Latitude','Longitude','Connected from','Port','Cable','Working cores','Faulty cores','Length source','Segment m','From start m','Input dBm','Output dBm','Output2 dBm','ONT Rx dBm','Status','Cut joint','Splices','Phone','Description','Created'];
   const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"',f=v=>v==null?'':v.toFixed(2);
   return [h.join(',')].concat(S.nodes.map(n=>{const c=R.C[n.id]||{},p=R.by[n.parent];
-    return [n.name,TYPES[n.type].label,n.ratio||'',folderName(n.folder),n.lat.toFixed(7),n.lng.toFixed(7),p?p.name:'',p?portLabel(p,n.port):'',n.cores?n.cores+'F':'',n.cores?workText(n):'',p?(n.len!=null?'Edited':'GPS'):'',f(c.seg),f(c.dist),f(c.pin),f(c.out&&c.out[0]),f(c.out&&c.out[1]),f(c.rx),n.type==='ont'?STXT[status(c.rx)]:'',n.cut?'Yes':'',splText(n).replace(/\n/g,'; '),n.phone||'',n.desc||'',fmtDate(n.created)].map(q).join(',');})).join('\n');
+    return [n.name,TYPES[n.type].label,n.ratio||'',folderName(n.folder),n.lat.toFixed(7),n.lng.toFixed(7),p?p.name:'',p?portLabel(p,n.port):'',n.cores?n.cores+'F':'',n.cores?workText(n):'',n.cores?bad(n).map(i=>(i+1)+' '+FIBER[i%12][0]).join(', '):'',p?(n.len!=null?'Edited':'GPS'):'',f(c.seg),f(c.dist),f(c.pin),f(c.out&&c.out[0]),f(c.out&&c.out[1]),f(c.rx),n.type==='ont'?STXT[status(c.rx)]:'',n.cut?'Yes':'',splText(n).replace(/\n/g,'; '),n.phone||'',n.desc||'',fmtDate(n.created)].map(q).join(',');})).join('\n');
 }
 function kml(){
   const x=esc;let pm='';
