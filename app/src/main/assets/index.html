@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0b3d5c">
+<title>SLVS FTTH Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Roboto,sans-serif;background:#0b1e2b;color:#102030;overflow:hidden}
+header{position:fixed;top:0;left:0;right:0;height:52px;background:#0b3d5c;color:#fff;display:flex;align-items:center;padding:0 8px;gap:6px;z-index:1000;box-shadow:0 2px 6px #0006}
+header .brand{flex:1;font-weight:700;font-size:17px;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .brand small{display:block;font-weight:400;font-size:11px;opacity:.75}
+.hbtn{background:#ffffff1f;border:0;color:#fff;min-width:40px;height:38px;border-radius:10px;font-size:18px;padding:0 10px}
+.hbtn.on{background:#26c6da;color:#002}
+#map{position:absolute;top:52px;left:0;right:0;bottom:0;background:#dde}
+#modebar{position:fixed;top:58px;left:6px;right:6px;z-index:900;display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+#modebar::-webkit-scrollbar{display:none}
+.chip{flex:none;border:0;background:#fff;color:#123;border-radius:18px;padding:8px 13px;font-size:13.5px;font-weight:600;box-shadow:0 1px 4px #0004}
+.chip.on{background:#0b3d5c;color:#fff}
+.chip.rec{background:#c62828;color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#typebar{position:fixed;top:100px;left:6px;right:6px;z-index:900;display:none;gap:6px;overflow-x:auto;scrollbar-width:none}
+#typebar.show{display:flex}
+.tchip{flex:none;border:2px solid transparent;background:#fff;border-radius:14px;padding:6px 10px;font-size:12.5px;font-weight:600;box-shadow:0 1px 4px #0004;display:flex;align-items:center;gap:5px}
+.tchip.on{border-color:#0b3d5c;background:#e3f4fa}
+.tchip i{width:16px;height:16px;border-radius:50%;display:inline-block}
+#hint{position:fixed;left:50%;transform:translateX(-50%);top:142px;z-index:900;background:#000c;color:#fff;font-size:12.5px;padding:6px 12px;border-radius:14px;display:none;max-width:92%;text-align:center}
+#fabs{position:fixed;right:10px;z-index:950;display:flex;flex-direction:column;gap:10px;transition:bottom .2s}
+.fab{width:52px;height:52px;border-radius:50%;border:0;background:#fff;color:#0b3d5c;font-size:22px;box-shadow:0 2px 8px #0006;display:flex;align-items:center;justify-content:center;font-weight:700}
+.fab.main{background:#0b3d5c;color:#fff}
+.fab.on{background:#26c6da;color:#002}
+.fab small{font-size:10px;display:block;line-height:1}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:960;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -3px 12px #0005;max-height:58vh;display:flex;flex-direction:column}
+#sheet .handle{padding:6px 12px 4px;display:flex;align-items:center;gap:8px;cursor:pointer}
+#sheet .handle:before{content:"";position:absolute;left:50%;top:5px;width:38px;height:4px;margin-left:-19px;border-radius:3px;background:#ccd}
+#sheet .stitle{flex:1;font-weight:700;font-size:15px;padding-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sheet .sbody{overflow-y:auto;padding:0 12px 14px;font-size:14px}
+#sheet.min .sbody{display:none}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:6px 0}
+.kv b{color:#456;font-weight:500}
+.kv span{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.pw{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.card{background:#f1f6f9;border-radius:12px;padding:8px 10px}
+.card .l{font-size:11.5px;color:#567;text-transform:uppercase;letter-spacing:.4px}
+.card .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.btn{border:0;background:#e6eef3;color:#123;border-radius:10px;padding:9px 12px;font-size:13.5px;font-weight:600}
+.btn.p{background:#0b3d5c;color:#fff}
+.btn.d{background:#fde8e8;color:#b71c1c}
+.btn.o{background:#fff3e0;color:#e65100}
+label.f{display:block;margin:8px 0 2px;font-size:12px;color:#567;font-weight:600}
+input,select,textarea{width:100%;padding:9px;border:1px solid #c9d6de;border-radius:9px;font-size:15px;background:#fff;color:#102030;font-family:inherit}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 4px;border-bottom:1px solid #e5ecf0;text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{color:#567;font-weight:600;font-size:11.5px;position:sticky;top:0;background:#fff}
+tr.click td{cursor:pointer}
+.tag{display:inline-block;padding:2px 7px;border-radius:8px;font-size:11.5px;font-weight:700}
+.ok{background:#e3f6e5;color:#1b5e20}.warn{background:#fff4d6;color:#8a5a00}.low{background:#fde3e3;color:#b71c1c}.high{background:#ffe0cc;color:#bf360c}.none{background:#eceff1;color:#546e7a}
+.muted{color:#678;font-size:12.5px}
+h4{margin:12px 0 4px;font-size:13px;color:#0b3d5c;text-transform:uppercase;letter-spacing:.5px}
+#modal{position:fixed;inset:0;background:#0008;z-index:2000;display:none;align-items:flex-end;justify-content:center}
+#modal.show{display:flex}
+#modal .box{background:#fff;width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px;max-height:88vh;overflow-y:auto}
+#modal h3{margin:0 0 8px;font-size:17px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222e;color:#fff;padding:9px 16px;border-radius:18px;font-size:13.5px;z-index:3000;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
+#toast.show{opacity:1}
+.mk{border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 4px #0008;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:12px;line-height:1}
+.mk.sel{outline:3px solid #ffeb3b;outline-offset:1px}
+.mk.sq{border-radius:5px}
+.mk.cut{box-shadow:0 0 0 3px #e53935,0 1px 4px #0008}
+.leaflet-tooltip.plbl{background:#0b3d5cdd;color:#fff;border:0;border-radius:6px;font-size:11px;padding:2px 6px;box-shadow:none;font-weight:600}
+.leaflet-tooltip.plbl:before{display:none}
+.leaflet-tooltip.llbl{background:#fffd;color:#004d5a;border:0;font-size:10.5px;padding:1px 4px;box-shadow:none;font-weight:700}
+.leaflet-tooltip.llbl:before{display:none}
+.gpsdot{width:18px;height:18px;border-radius:50%;background:#2979ff;border:3px solid #fff;box-shadow:0 0 0 2px #2979ff66,0 1px 4px #0008}
+#fail{display:none;position:absolute;inset:52px 0 0 0;background:#fff;padding:24px;z-index:5000;font-size:15px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">SLVS FTTH Map<small id="sub">Fiber route &amp; power planner</small></div>
+  <button class="hbtn" id="bLayer" title="Map / Satellite">🗺</button>
+  <button class="hbtn" id="bLbl" title="Power labels">dB</button>
+  <button class="hbtn" id="bMenu" title="Menu">☰</button>
+</header>
+<div id="map"></div>
+<div id="fail"><h3>Map could not load</h3><p>The map needs an internet connection the first time it opens (map library and map tiles). Connect to mobile data or Wi‑Fi and reload.</p><p class="muted">Your saved routes are kept on this phone.</p></div>
+
+<div id="modebar">
+  <button class="chip on" data-mode="select">👆 Select</button>
+  <button class="chip" data-mode="add">➕ Add</button>
+  <button class="chip" data-mode="measure">📏 Measure</button>
+  <button class="chip" data-mode="cut">✂️ Fiber cut</button>
+  <button class="chip" id="bRec">⏺ Walk &amp; record</button>
+</div>
+<div id="typebar"></div>
+<div id="hint"></div>
+
+<div id="fabs">
+  <button class="fab" id="fLoc" title="My location">◎</button>
+  <button class="fab main" id="fGps" title="Add point at my GPS location">＋<small>GPS</small></button>
+</div>
+
+<div id="sheet">
+  <div class="handle" id="sHandle"><div class="stitle" id="sTitle">Summary</div><button class="btn" id="sClose" style="display:none">✕</button></div>
+  <div class="sbody" id="sBody"></div>
+</div>
+
+<div id="modal"><div class="box" id="mBox"></div></div>
+<div id="toast"></div>
+<input type="file" id="fileIn" accept=".json,application/json" style="display:none">
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+/* ===================== constants ===================== */
+const TYPES={
+  olt:  {label:'OLT / Source',      short:'OLT',color:'#d32f2f',icon:'⚡',pre:'OLT-',size:30,sq:true},
+  pole: {label:'Route point / Pole',short:'Pole',color:'#546e7a',icon:'',pre:'P-',size:14},
+  joint:{label:'Joint / Splice',    short:'Joint',color:'#f57c00',icon:'✚',pre:'JC-',size:24},
+  plc:  {label:'PLC Splitter',      short:'PLC',color:'#7b1fa2',icon:'S',pre:'SPL-',size:26,sq:true},
+  fbt:  {label:'FBT Coupler',       short:'Coupler',color:'#1565c0',icon:'C',pre:'CPL-',size:26,sq:true},
+  ont:  {label:'ONT / Customer',    short:'ONT',color:'#2e7d32',icon:'⌂',pre:'ONT-',size:24}
+};
+const PLC={'1x2':3.01,'1x4':6.02,'1x8':9.03,'1x16':12.04,'1x32':15.05,'1x64':18.06};
+/* FBT insertion loss (1310 & 1550 nm), dB – Port1 = first %, Port2 = second % of the ratio */
+const FBT_TABLE={'50/50':[3.2,3.2],'60/40':[2.5,4.4],'70/30':[1.7,5.7],'20/80':[7.6,1.1],'10/90':[11.0,0.49],'5/95':[14.0,0.25]};
+const FBT=Object.keys(FBT_TABLE);
+const WL={'1310':0.35,'1490':0.28,'1550':0.25};
+const DEF={oltPower:5,wl:'1490',lossKm:0.28,spliceLoss:0.1,connLoss:0.5,fbtExcess:0.3,sens:-27,overload:-8,margin:3,recInt:20,recAcc:30,showLabels:true,showLen:false,sat:false};
+const KEY='slvs_ftth_v1';
+
+/* ===================== state ===================== */
+let S=load();
+let sel=null, mode='select', addType='pole', meas=[], pendingParent=null, pendingMove=null;
+let gps=null, watchId=null, follow=false, rec=false, recLast=null, recDist=0, recCount=0;
+let R={C:{},by:{},kids:{}}, sheetView=null, sheetMin=false;
+
+function load(){
+  try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.nodes){s.set=Object.assign({},DEF,s.set);s.seq=s.seq||1;return s;}}catch(e){}
+  return {nodes:[],set:Object.assign({},DEF),seq:1};
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+
+/* ===================== helpers ===================== */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=(v,d)=>(v===''||v==null||isNaN(+v))?d:+v;
+const fmtD=m=>m==null?'—':(m<1000?m.toFixed(1)+' m':(m/1000).toFixed(3)+' km');
+const fmtP=p=>p==null?'—':p.toFixed(2)+' dBm';
+const fmtL=l=>l==null?'—':l.toFixed(2)+' dB';
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function hav(a,b){const R0=6371008.8,r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLn=(b.lng-a.lng)*r;
+  const s=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLn/2)**2;return 2*R0*Math.asin(Math.min(1,Math.sqrt(s)));}
+function proj(p,a,b){const k=Math.cos(a.lat*Math.PI/180),ax=a.lng*k,ay=a.lat,dx=b.lng*k-ax,dy=b.lat-ay;
+  let t=((p.lng*k-ax)*dx+(p.lat-ay)*dy)/((dx*dx+dy*dy)||1e-18);t=Math.max(0,Math.min(1,t));return {lat:ay+t*dy,lng:(ax+t*dx)/k,t};}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2600);}
+function fbtParts(r){const p=String(r||'50/50').split('/').map(Number);return [p[0]||50,p[1]||50];}
+function fbtLoss(n,port){const i=port?1:0;const o=i?n.l2:n.l1;if(o!=null&&o!==''&&isFinite(+o))return +o;const t=FBT_TABLE[n.ratio];if(t)return t[i];const p=fbtParts(n.ratio)[i];return -10*Math.log10(p/100)+0.3;}
+function nodeLoss(n,port){const s=S.set;switch(n.type){
+  case 'olt':return s.connLoss; case 'joint':return num(n.loss,s.spliceLoss);
+  case 'plc':return num(n.loss,PLC[n.ratio]||0); case 'fbt':return fbtLoss(n,port);
+  case 'ont':return s.connLoss; default:return 0;}}
+function ports(n){if(n.type==='fbt')return 2;if(n.type==='plc')return parseInt(String(n.ratio).split('x')[1])||2;return 0;}
+function portLabel(p,port){if(!p)return '';if(p.type==='fbt'){const f=fbtParts(p.ratio);return (port?f[1]:f[0])+'% leg';}if(p.type==='plc')return 'Port '+((port||0)+1);return '';}
+function status(rx){if(rx==null)return 'none';const s=S.set;if(rx>s.overload)return 'high';if(rx<s.sens)return 'low';if(rx<s.sens+s.margin)return 'warn';return 'ok';}
+const STXT={ok:'OK',warn:'Low margin',low:'Too low',high:'Too high',none:'No source'};
+
+/* ===================== power & distance engine ===================== */
+function compute(){
+  const by={},kids={},C={},st=S.set;
+  S.nodes.forEach(n=>by[n.id]=n);
+  S.nodes.forEach(n=>{if(n.type==='olt')n.parent=null;if(n.parent&&by[n.parent])(kids[n.parent]||(kids[n.parent]=[])).push(n);});
+  const stack=[];
+  S.nodes.forEach(n=>{if(!n.parent||!by[n.parent])stack.push([n,n.type==='olt'?num(n.power,st.oltPower):null,0,0,n.id]);});
+  while(stack.length){
+    const [n,pin,dist,seg,root]=stack.pop(); if(C[n.id])continue;
+    let out;
+    if(pin==null) out=[null,null];
+    else if(n.type==='fbt') out=[pin-fbtLoss(n,0),pin-fbtLoss(n,1)];
+    else out=[pin-nodeLoss(n,0)];
+    const c={dist,seg,pin,out,root,rx:n.type==='ont'&&pin!=null?pin-st.connLoss:null};
+    C[n.id]=c;
+    (kids[n.id]||[]).forEach(k=>{const s=hav(n,k);const po=out[n.type==='fbt'?(k.port?1:0):0];
+      stack.push([k,po==null?null:po-s/1000*st.lossKm,dist+s,s,root]);});
+  }
+  return {C,by,kids};
+}
+function pathTo(n){const p=[],seen=new Set();let c=n;while(c&&!seen.has(c.id)){seen.add(c.id);p.unshift(c);c=c.parent?R.by[c.parent]:null;}return p;}
+function isDesc(a,b){/* is a a descendant of b */let c=a,seen=new Set();while(c&&!seen.has(c.id)){if(c.id===b.id)return true;seen.add(c.id);c=c.parent?R.by[c.parent]:null;}return false;}
+function fiberBetween(a,b){const pa=pathTo(a),ids=new Set(pa.map(n=>n.id));let c=b,seen=new Set();
+  while(c&&!seen.has(c.id)){if(ids.has(c.id)){const ca=R.C[a.id],cb=R.C[b.id],cl=R.C[c.id];if(!ca||!cb||!cl)return null;return ca.dist+cb.dist-2*cl.dist;}seen.add(c.id);c=c.parent?R.by[c.parent]:null;}
+  return null;}
+function nextPort(p){const n=ports(p);if(!n)return 0;const used=new Set((R.kids[p.id]||[]).map(k=>k.port||0));for(let i=0;i<n;i++)if(!used.has(i))return i;return -1;}
+
+/* ===================== map ===================== */
+if(typeof L==='undefined'){$('fail').style.display='block';throw new Error('Leaflet not loaded');}
+const map=L.map('map',{zoomControl:false,attributionControl:true}).setView([20.59,78.96],5);
+const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,maxNativeZoom:19,attribution:'© OpenStreetMap'});
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,maxNativeZoom:19,attribution:'Imagery © Esri'});
+(S.set.sat?sat:osm).addTo(map);
+const lineLayer=L.layerGroup().addTo(map),mkLayer=L.layerGroup().addTo(map),measLayer=L.layerGroup().addTo(map);
+let gpsMk=null,gpsCirc=null;
+
+function render(){
+  R=compute();const {C,by}=R;
+  lineLayer.clearLayers();mkLayer.clearLayers();
+  const hl=new Set();if(sel&&by[sel])pathTo(by[sel]).forEach(n=>hl.add(n.id));
+  S.nodes.forEach(n=>{
+    if(!(n.parent&&by[n.parent]))return;const p=by[n.parent];const on=hl.has(n.id);
+    const ll=[[p.lat,p.lng],[n.lat,n.lng]];
+    const c=C[n.id];const st=n.type==='ont'?status(c&&c.rx):null;
+    const col=on?'#ffd600':(c&&c.pin==null?'#90a4ae':'#00acc1');
+    L.polyline(ll,{color:'#00333a',weight:on?9:7,opacity:.35,interactive:false}).addTo(lineLayer);
+    const ln=L.polyline(ll,{color:col,weight:on?6:4,opacity:.95,interactive:false}).addTo(lineLayer);
+    if(S.set.showLen&&c&&c.seg>5)ln.bindTooltip(fmtD(c.seg),{permanent:true,direction:'center',className:'llbl'});
+    const hit=L.polyline(ll,{weight:26,opacity:0}).addTo(lineLayer);
+    hit.on('click',e=>{L.DomEvent.stop(e);onLine(n,e.latlng);});
+  });
+  S.nodes.forEach(n=>{
+    const t=TYPES[n.type]||TYPES.pole,c=C[n.id],sz=t.size;
+    let bg=t.color;if(n.type==='ont'){const s=status(c&&c.rx);bg={ok:'#2e7d32',warn:'#f9a825',low:'#c62828',high:'#e65100',none:'#78909c'}[s];}
+    const cls='mk'+(t.sq?' sq':'')+(sel===n.id?' sel':'')+(n.cut?' cut':'');
+    const ic=L.divIcon({className:'',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],html:`<div class="${cls}" style="width:${sz}px;height:${sz}px;background:${bg}">${t.icon}</div>`});
+    const m=L.marker([n.lat,n.lng],{icon:ic,zIndexOffset:n.type==='pole'?0:500}).addTo(mkLayer);
+    m.on('click',e=>{L.DomEvent.stop(e);onNode(n);});
+    if(S.set.showLabels&&n.type!=='pole'&&c){
+      const v=n.type==='ont'?c.rx:(n.type==='olt'?c.out[0]:c.pin);
+      const pfx=n.type==='ont'?'Rx ':n.type==='olt'?'Tx ':'In ';
+      m.bindTooltip(`${esc(n.name)} · ${pfx}${v==null?'—':v.toFixed(1)}`,{permanent:true,direction:'right',offset:[sz/2,0],className:'plbl'});
+    }
+  });
+  renderSheet();save();
+}
+
+/* ===================== interaction ===================== */
+function setMode(m){
+  mode=m;meas=[];measLayer.clearLayers();pendingParent=null;pendingMove=null;
+  document.querySelectorAll('#modebar .chip[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+  $('typebar').classList.toggle('show',m==='add');
+  hint({select:'',add:'Tap the map to place a '+TYPES[addType].short+'. It connects to the selected item.',measure:'Tap two points or items to measure distance.',cut:'Tap on a fiber line where it is cut to add a joint.'}[m]);
+  if(m==='measure'){sheetView='measure';}else if(sheetView==='measure')sheetView=null;
+  renderSheet();
+}
+function hint(t){const h=$('hint');h.textContent=t||'';h.style.display=t?'block':'none';h.style.top=mode==='add'?'142px':'104px';}
+function buildTypebar(){
+  $('typebar').innerHTML=Object.entries(TYPES).map(([k,t])=>`<button class="tchip${k===addType?' on':''}" data-t="${k}"><i style="background:${t.color}"></i>${t.short}</button>`).join('');
+  $('typebar').querySelectorAll('.tchip').forEach(b=>b.onclick=()=>{addType=b.dataset.t;buildTypebar();hint('Tap the map to place a '+TYPES[addType].short+'. It connects to the selected item.');});
+}
+map.on('click',e=>{
+  const ll=e.latlng;
+  if(pendingMove){const n=R.by[pendingMove];pendingMove=null;hint('');if(n){n.lat=ll.lat;n.lng=ll.lng;toast('Moved '+n.name);render();}return;}
+  if(mode==='add'){addNode(addType,ll.lat,ll.lng);return;}
+  if(mode==='measure'){addMeas({lat:ll.lat,lng:ll.lng});return;}
+  if(mode==='cut'){toast('Tap directly on a fiber line');return;}
+  if(pendingParent){pendingParent=null;hint('');}
+  sel=null;sheetView=null;render();
+});
+function onNode(n){
+  if(pendingParent){const ch=R.by[pendingParent];pendingParent=null;hint('');
+    if(ch)setParent(ch,n);return;}
+  if(pendingMove){pendingMove=null;hint('');}
+  if(mode==='measure'){addMeas({lat:n.lat,lng:n.lng,node:n.id});return;}
+  sel=n.id;sheetView='node';sheetMin=false;render();
+}
+function onLine(child,ll){
+  if(mode==='measure'){addMeas({lat:ll.lat,lng:ll.lng});return;}
+  const p=R.by[child.parent];const c=R.C[child.id];
+  if(mode==='cut'){cutDialog(child,ll);return;}
+  modal(`<h3>Fiber ${esc(p.name)} → ${esc(child.name)}</h3>
+   <div class="kv"><b>Length</b><span>${fmtD(c&&c.seg)}</span><b>Fiber loss</b><span>${fmtL(c&&c.seg/1000*S.set.lossKm)}</span><b>Power at end</b><span>${fmtP(c&&c.pin)}</span></div>
+   <div class="btns"><button class="btn o" id="mCut">✂️ Fiber cut here – add joint</button><button class="btn" id="mPole">➕ Add bend point here</button><button class="btn" data-close>Close</button></div>`);
+  $('mCut').onclick=()=>{closeModal();cutDialog(child,ll);};
+  $('mPole').onclick=()=>{closeModal();insertOn(child,ll,'pole');};
+}
+function addNode(type,lat,lng,opts){
+  opts=opts||{};
+  let parent=opts.parent!==undefined?opts.parent:(sel&&R.by[sel]?R.by[sel]:null);
+  if(type==='olt')parent=null;
+  let port=0;
+  if(parent){port=nextPort(parent);if(port<0){toast(parent.name+' has no free port – connected to last port');port=ports(parent)-1;}}
+  const n={id:uid(),type,lat,lng,name:TYPES[type].pre+(S.seq++),parent:parent?parent.id:null,port};
+  if(type==='plc')n.ratio='1x8';
+  if(type==='fbt')n.ratio='70/30';
+  if(type==='olt')n.power=S.set.oltPower;
+  if(opts.cut){n.cut=true;n.date=new Date().toISOString().slice(0,16).replace('T',' ');}
+  S.nodes.push(n);
+  if(!opts.keepSel)sel=n.id;
+  if(!opts.quiet){sheetView='node';sheetMin=false;}
+  render();
+  if(!opts.quiet){const c=R.C[n.id];toast(n.name+' added'+(c&&c.seg?' · '+fmtD(c.seg)+' from '+R.by[n.parent].name:''));}
+  return n;
+}
+function insertOn(child,ll,type,extra){
+  const p=R.by[child.parent];if(!p)return;
+  const pt=proj(ll,p,child);
+  const n={id:uid(),type,lat:pt.lat,lng:pt.lng,name:TYPES[type].pre+(S.seq++),parent:p.id,port:child.port||0};
+  Object.assign(n,extra||{});
+  child.parent=n.id;child.port=0;
+  S.nodes.push(n);sel=n.id;sheetView='node';sheetMin=false;render();
+  toast((type==='joint'?'Joint ':'Point ')+n.name+' inserted · '+fmtD(R.C[n.id].seg)+' from '+p.name);
+  return n;
+}
+function cutDialog(child,ll){
+  const p=R.by[child.parent];const pt=proj(ll,p,child);
+  const dA=hav(p,pt),dB=hav(pt,child);
+  modal(`<h3>✂️ Fiber cut – add joint</h3>
+   <p class="muted">Between <b>${esc(p.name)}</b> and <b>${esc(child.name)}</b>. The joint is placed on the fiber line at ${fmtD(dA)} from ${esc(p.name)} and ${fmtD(dB)} from ${esc(child.name)}.</p>
+   <label class="f">Joint name</label><input id="jName" value="JC-${S.seq}">
+   <div class="row2"><div><label class="f">Splice loss (dB)</label><input id="jLoss" type="number" step="0.01" value="${S.set.spliceLoss}"></div>
+   <div><label class="f">Fibers spliced</label><input id="jFib" type="number" value="1"></div></div>
+   <label class="f">Note (cause, cable, etc.)</label><input id="jNote" placeholder="e.g. cut by JCB, 12F cable">
+   <div class="btns"><button class="btn p" id="jOk">Add joint</button><button class="btn" data-close>Cancel</button></div>`);
+  $('jOk').onclick=()=>{
+    const extra={cut:true,loss:num($('jLoss').value,S.set.spliceLoss),fibers:$('jFib').value,notes:$('jNote').value,date:new Date().toISOString().slice(0,16).replace('T',' ')};
+    const nm=$('jName').value.trim();closeModal();const n=insertOn(child,ll,'joint',extra);if(n&&nm){n.name=nm;render();}
+  };
+}
+function setParent(ch,p){
+  if(ch.id===p.id){toast('Cannot connect to itself');return;}
+  if(ch.type==='olt'){toast('OLT is the source – it has no parent');return;}
+  if(isDesc(p,ch)){toast('That would make a loop');return;}
+  ch.parent=p.id;ch.port=Math.max(0,nextPort(p));sel=ch.id;render();toast(ch.name+' connected to '+p.name);
+}
+function delNode(n){
+  S.nodes.forEach(k=>{if(k.parent===n.id){k.parent=n.parent;k.port=n.port||0;}});
+  S.nodes=S.nodes.filter(k=>k.id!==n.id);
+  if(sel===n.id)sel=n.parent||null;sheetView=sel?'node':null;render();toast('Deleted '+n.name);
+}
+
+/* ===================== measure ===================== */
+function addMeas(p){
+  if(meas.length>=2){meas=[];}
+  meas.push(p);measLayer.clearLayers();
+  meas.forEach(m=>L.circleMarker([m.lat,m.lng],{radius:8,color:'#fff',weight:3,fillColor:'#e91e63',fillOpacity:1}).addTo(measLayer));
+  if(meas.length===2)L.polyline(meas.map(m=>[m.lat,m.lng]),{color:'#e91e63',weight:3,dashArray:'6 6'}).addTo(measLayer);
+  sheetView='measure';sheetMin=false;renderSheet();
+}
+
+/* ===================== GPS ===================== */
+function startGps(cb){
+  if(!navigator.geolocation){toast('GPS not available on this device');return;}
+  if(watchId==null){
+    watchId=navigator.geolocation.watchPosition(onPos,err=>{
+      const m={1:'Location permission denied. Allow location for this app/site.',2:'GPS position unavailable – go outdoors / turn on Location.',3:'GPS timeout'}[err.code]||err.message;
+      toast(m);if(err.code===1){navigator.geolocation.clearWatch(watchId);watchId=null;}
+    },{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+  }
+  if(cb){if(gps&&Date.now()-gps.t<10000)cb(gps);else{toast('Getting GPS fix…');const w=p=>{cb(p);};startGps._q=(startGps._q||[]).concat(w);}}
+}
+function onPos(pos){
+  gps={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:pos.coords.accuracy,t:Date.now()};
+  const ll=[gps.lat,gps.lng];
+  if(!gpsMk){gpsMk=L.marker(ll,{icon:L.divIcon({className:'',iconSize:[18,18],iconAnchor:[9,9],html:'<div class="gpsdot"></div>'}),interactive:false,zIndexOffset:2000}).addTo(map);
+    gpsCirc=L.circle(ll,{radius:gps.acc,color:'#2979ff',weight:1,fillOpacity:.1,interactive:false}).addTo(map);map.setView(ll,Math.max(map.getZoom(),18));}
+  else{gpsMk.setLatLng(ll);gpsCirc.setLatLng(ll).setRadius(gps.acc);}
+  if(follow)map.panTo(ll);
+  $('sub').textContent='GPS ±'+Math.round(gps.acc)+' m'+(rec?' · REC '+recCount+' pts · '+fmtD(recDist):'');
+  if(startGps._q&&startGps._q.length){const q=startGps._q;startGps._q=[];q.forEach(f=>f(gps));}
+  if(rec)recordStep();
+}
+function recordStep(){
+  if(gps.acc>S.set.recAcc)return;
+  if(!recLast){recLast=gps;return;}
+  const d=hav(recLast,gps);
+  if(d>=S.set.recInt){
+    addNode('pole',gps.lat,gps.lng,{quiet:true});recDist+=d;recCount++;recLast={lat:gps.lat,lng:gps.lng};
+  }
+}
+function toggleRec(){
+  if(rec){rec=false;$('bRec').classList.remove('rec');$('bRec').textContent='⏺ Walk & record';
+    toast('Recording stopped · '+recCount+' points · '+fmtD(recDist));$('sub').textContent=gps?'GPS ±'+Math.round(gps.acc)+' m':'Fiber route & power planner';sheetView=sel?'node':null;render();return;}
+  if(!sel){modal(`<h3>Walk &amp; record route</h3><p>Select the starting item first (e.g. your OLT, a joint or splitter), or add the start point at your GPS position now.</p>
+     <div class="btns"><button class="btn p" id="rStart">Add start (OLT) at GPS</button><button class="btn" id="rStart2">Add start Pole at GPS</button><button class="btn" data-close>Cancel</button></div>`);
+    $('rStart').onclick=()=>{closeModal();startGps(p=>{addNode('olt',p.lat,p.lng,{parent:null});toggleRec();});};
+    $('rStart2').onclick=()=>{closeModal();startGps(p=>{addNode('pole',p.lat,p.lng,{parent:null});toggleRec();});};
+    return;}
+  startGps();rec=true;follow=true;$('fLoc').classList.add('on');recDist=0;recCount=0;
+  const s=R.by[sel];recLast=s?{lat:s.lat,lng:s.lng}:null;
+  $('bRec').classList.add('rec');$('bRec').textContent='⏹ Stop recording';
+  toast('Recording – walk along the cable route. A point is added every '+S.set.recInt+' m.');
+}
+function gpsAdd(){
+  startGps(p=>{
+    if(p.acc>50)toast('Weak GPS (±'+Math.round(p.acc)+' m)');
+    if(mode==='cut'){ // snap joint to nearest fiber
+      let best=null;S.nodes.forEach(n=>{if(!n.parent||!R.by[n.parent])return;const a=R.by[n.parent],q=proj(p,a,n),d=hav(p,q);if(!best||d<best.d)best={n,d};});
+      if(best&&best.d<60){cutDialog(best.n,L.latLng(p.lat,p.lng));return;}
+      toast('No fiber within 60 m – joint added at GPS');addNode('joint',p.lat,p.lng,{cut:true});return;
+    }
+    const type=mode==='add'?addType:(sel?'pole':'olt');
+    addNode(type,p.lat,p.lng);map.panTo([p.lat,p.lng]);
+  });
+}
+
+/* ===================== sheet ===================== */
+function renderSheet(){
+  const sh=$('sheet');sh.classList.toggle('min',sheetMin);
+  let t='',h='';
+  const n=sel&&R.by[sel];
+  if(sheetView==='measure'){[t,h]=vMeasure();}
+  else if(sheetView==='list'){[t,h]=vList();}
+  else if(sheetView==='report'&&n){[t,h]=vReport(n);}
+  else if(sheetView==='edit'&&n){[t,h]=vEdit(n);}
+  else if(n){[t,h]=vNode(n);}
+  else {[t,h]=vSummary();}
+  $('sTitle').innerHTML=t;$('sBody').innerHTML=h;
+  $('sClose').style.display=(n||sheetView)?'block':'none';
+  bindSheet();
+  requestAnimationFrame(()=>{$('fabs').style.bottom=(sh.offsetHeight+12)+'px';});
+}
+function vSummary(){
+  const C=R.C,onts=S.nodes.filter(n=>n.type==='ont'),st=S.set;
+  let tot=0,cuts=0,spl=0;S.nodes.forEach(n=>{if(C[n.id])tot+=C[n.id].seg;if(n.type==='joint')cuts++;if(n.type==='plc'||n.type==='fbt')spl++;});
+  const far=onts.reduce((a,n)=>C[n.id]&&(!a||C[n.id].dist>C[a.id].dist)?n:a,null);
+  const cnt={ok:0,warn:0,low:0,high:0,none:0};onts.forEach(n=>cnt[status(C[n.id]&&C[n.id].rx)]++);
+  if(!S.nodes.length)return ['SLVS FTTH Map',`<p>Start your fiber map:</p>
+    <ol class="muted" style="padding-left:18px;line-height:1.6"><li>Stand at the OLT / source and tap <b>＋GPS</b> (or choose <b>Add → OLT</b> and tap the map).</li>
+    <li>Walk the route and tap <b>＋GPS</b> at each pole, or use <b>Walk &amp; record</b>.</li>
+    <li>Add <b>PLC splitters / FBT couplers</b>, <b>joints</b> and <b>ONTs</b>. Power is calculated automatically.</li>
+    <li>For a fiber cut use <b>✂️ Fiber cut</b> and tap the line.</li></ol>
+    <div class="btns"><button class="btn p" data-act="loc">◎ Find my location</button><button class="btn" data-act="settings">⚙ Power settings</button><button class="btn" data-act="help">Help</button></div>`];
+  return ['Network summary',`
+   <div class="cards"><div class="card"><div class="l">Total fiber</div><div class="v">${fmtD(tot)}</div></div>
+   <div class="card"><div class="l">OLT Tx power</div><div class="v">${st.oltPower} dBm</div></div>
+   <div class="card"><div class="l">Joints</div><div class="v">${cuts}</div></div>
+   <div class="card"><div class="l">Splitters / couplers</div><div class="v">${spl}</div></div></div>
+   ${onts.length?`<div class="kv"><b>ONTs</b><span>${onts.length}</span><b>Farthest ONT</b><span>${far?esc(far.name)+' · '+fmtD(C[far.id].dist):'—'}</span></div>
+   <div class="btns">${Object.keys(cnt).filter(k=>cnt[k]).map(k=>`<span class="tag ${k}">${STXT[k]}: ${cnt[k]}</span>`).join('')}</div>`:'<p class="muted">No ONT added yet.</p>'}
+   <div class="btns"><button class="btn p" data-act="list">📋 All items &amp; power</button><button class="btn" data-act="settings">⚙ Settings</button></div>`];
+}
+function vNode(n){
+  const c=R.C[n.id]||{},t=TYPES[n.type],p=n.parent&&R.by[n.parent],st=S.set;
+  let pw='';
+  if(n.type==='olt')pw=`<div class="cards"><div class="card"><div class="l">Input (laser)</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">Output</div><div class="v">${fmtP(c.out&&c.out[0])}</div></div></div>`;
+  else if(n.type==='fbt'){const f=fbtParts(n.ratio);pw=`<div class="cards"><div class="card"><div class="l">Input power</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">Coupler ${esc(n.ratio)}</div><div class="v">${fmtL(fbtLoss(n,0))} / ${fmtL(fbtLoss(n,1))}</div></div>
+     <div class="card"><div class="l">Output ${f[0]}% leg</div><div class="v">${fmtP(c.out&&c.out[0])}</div></div><div class="card"><div class="l">Output ${f[1]}% leg</div><div class="v">${fmtP(c.out&&c.out[1])}</div></div></div>`;}
+  else if(n.type==='plc')pw=`<div class="cards"><div class="card"><div class="l">Input power</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">Output each port</div><div class="v">${fmtP(c.out&&c.out[0])}</div></div></div><div class="muted">Splitter ${esc(n.ratio)} loss ${fmtL(nodeLoss(n))} · ports used ${(R.kids[n.id]||[]).length}/${ports(n)}</div>`;
+  else if(n.type==='ont'){const s=status(c.rx);pw=`<div class="cards"><div class="card"><div class="l">Fiber input</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">ONT Rx power</div><div class="v">${fmtP(c.rx)}</div></div></div><span class="tag ${s}">${STXT[s]}</span> <span class="muted">Range ${st.overload} to ${st.sens} dBm${c.rx!=null?' · margin '+(c.rx-st.sens).toFixed(2)+' dB':''}</span>`;}
+  else pw=`<div class="cards"><div class="card"><div class="l">Input power</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">Output power</div><div class="v">${fmtP(c.out&&c.out[0])}</div></div></div>${n.type==='joint'?`<div class="muted">Splice loss ${fmtL(nodeLoss(n))}${n.cut?' · <b style="color:#c62828">Fiber cut joint</b>':''}${n.date?' · '+esc(n.date):''}${n.notes?' · '+esc(n.notes):''}</div>`:''}`;
+  const from=c.root&&R.by[c.root];
+  return [`<span style="color:${t.color}">●</span> ${esc(n.name)} <span class="muted">${t.label}</span>`,`
+   ${pw}
+   <div class="kv">
+    <b>From start${from&&from.id!==n.id?' ('+esc(from.name)+')':''}</b><span>${fmtD(c.dist)}</span>
+    ${p?`<b>From ${esc(p.name)}${portLabel(p,n.port)?' · '+portLabel(p,n.port):''}</b><span>${fmtD(c.seg)}</span>`:''}
+    <b>GPS</b><span>${n.lat.toFixed(6)}, ${n.lng.toFixed(6)}</span>
+   </div>
+   <div class="btns">
+    <button class="btn p" data-act="edit">✏️ Edit</button>
+    <button class="btn" data-act="report">📊 Power path</button>
+    <button class="btn" data-act="addnext">➕ Add next</button>
+    ${n.type!=='olt'?'<button class="btn" data-act="parent">🔗 Connect to…</button>':''}
+    <button class="btn" data-act="movegps">📍 Move to GPS</button>
+    <button class="btn" data-act="movetap">✋ Move (tap map)</button>
+    <button class="btn" data-act="nav">🧭 Navigate</button>
+    <button class="btn d" data-act="del">🗑 Delete</button>
+   </div>`];
+}
+function vEdit(n){
+  const t=TYPES[n.type],p=n.parent&&R.by[n.parent];
+  let f=`<label class="f">Name</label><input id="eName" value="${esc(n.name)}">
+   <label class="f">Type</label><select id="eType">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}"${k===n.type?' selected':''}>${v.label}</option>`).join('')}</select>`;
+  if(n.type==='olt')f+=`<label class="f">OLT / source output power (dBm)</label><input id="ePow" type="number" step="0.1" value="${num(n.power,S.set.oltPower)}">`;
+  if(n.type==='plc')f+=`<div class="row2"><div><label class="f">Split ratio</label><select id="eRatio">${Object.keys(PLC).map(r=>`<option${r===n.ratio?' selected':''}>${r}</option>`).join('')}</select></div><div><label class="f">Loss override (dB)</label><input id="eLoss" type="number" step="0.1" placeholder="${PLC[n.ratio]}" value="${n.loss==null?'':n.loss}"></div></div>`;
+  if(n.type==='fbt'){const fp=fbtParts(n.ratio),tb=FBT_TABLE[n.ratio]||['',''];f+=`<label class="f">Coupler ratio (Port1 / Port2)</label><select id="eRatio">${FBT.map(r=>`<option${r===n.ratio?' selected':''}>${r}</option>`).join('')}</select>
+   <div class="row2"><div><label class="f">Port1 ${fp[0]}% loss (dB)</label><input id="eL1" type="number" step="0.01" placeholder="${tb[0]}" value="${n.l1==null?'':n.l1}"></div><div><label class="f">Port2 ${fp[1]}% loss (dB)</label><input id="eL2" type="number" step="0.01" placeholder="${tb[1]}" value="${n.l2==null?'':n.l2}"></div></div>
+   <div class="muted">Leave empty to use the coupler loss chart. <a href="#" id="eChart">View chart</a></div>`;}
+  if(n.type==='joint')f+=`<div class="row2"><div><label class="f">Splice loss (dB)</label><input id="eLoss" type="number" step="0.01" placeholder="${S.set.spliceLoss}" value="${n.loss==null?'':n.loss}"></div><div><label class="f">Fiber cut joint</label><select id="eCut"><option value="0">No</option><option value="1"${n.cut?' selected':''}>Yes</option></select></div></div>`;
+  if(p&&ports(p))f+=`<label class="f">Connected to ${esc(p.name)} on</label><select id="ePort">${Array.from({length:ports(p)},(_,i)=>`<option value="${i}"${(n.port||0)===i?' selected':''}>${portLabel(p,i)}</option>`).join('')}</select>`;
+  f+=`<label class="f">Notes</label><textarea id="eNote" rows="2">${esc(n.notes||'')}</textarea>
+   <div class="btns"><button class="btn p" data-act="esave">Save</button><button class="btn" data-act="ecancel">Cancel</button></div>`;
+  return ['Edit '+esc(n.name),f];
+}
+function vReport(n){
+  const path=pathTo(n),st=S.set;let rows='',fib=0,fl=0,sp=0,spc=0,spl=0,con=0;
+  const root=path[0],rc=R.C[root.id];
+  if(root.type!=='olt')return ['Power path',`<p>This route is not connected to an OLT / source, so power cannot be calculated. Use <b>🔗 Connect to…</b> to connect the first item to an OLT.</p>`];
+  rows+=`<tr><td>⚡ ${esc(root.name)} laser</td><td></td><td>${fmtP(rc.pin)}</td></tr><tr><td>&nbsp;&nbsp;connector</td><td>−${st.connLoss.toFixed(2)}</td><td>${fmtP(rc.out[0])}</td></tr>`;con+=st.connLoss;
+  for(let i=1;i<path.length;i++){
+    const x=path[i],c=R.C[x.id],pr=path[i-1],l=c.seg/1000*st.lossKm;fib+=c.seg;fl+=l;
+    rows+=`<tr><td class="muted">&nbsp;&nbsp;fiber ${fmtD(c.seg)}</td><td>−${l.toFixed(2)}</td><td>${fmtP(c.pin)}</td></tr>`;
+    if(x.type==='pole')continue;
+    if(i===path.length-1&&x.type!=='ont'){rows+=`<tr><td><b>${esc(x.name)}</b> input</td><td></td><td><b>${fmtP(c.pin)}</b></td></tr>`;break;}
+    const port=(path[i+1]&&x.type==='fbt')?(path[i+1].port?1:0):0,ls=nodeLoss(x,port);
+    if(x.type==='joint'){sp+=ls;spc++;} else if(x.type==='plc'||x.type==='fbt')spl+=ls; else if(x.type==='ont')con+=ls;
+    const lbl=x.type==='fbt'?'coupler '+fbtParts(x.ratio)[port]+'% leg':x.type==='plc'?'splitter '+x.ratio:x.type==='joint'?'splice':x.type==='ont'?'ONT connector':'';
+    rows+=`<tr><td>${TYPES[x.type].icon} ${esc(x.name)} <span class="muted">${lbl}</span></td><td>−${ls.toFixed(2)}</td><td>${fmtP(x.type==='ont'?c.rx:c.out[port])}</td></tr>`;
+  }
+  const c=R.C[n.id],end=n.type==='ont'?c.rx:c.pin,tl=rc.pin-end;
+  return ['Power path → '+esc(n.name),`
+   <table><tr><th>Item</th><th>Loss dB</th><th>Power</th></tr>${rows}</table>
+   <h4>Budget</h4><div class="kv"><b>Fiber length</b><span>${fmtD(fib)}</span><b>Fiber loss (${st.lossKm} dB/km @${st.wl} nm)</b><span>${fmtL(fl)}</span>
+   <b>Joints (${spc})</b><span>${fmtL(sp)}</span><b>Splitters / couplers</b><span>${fmtL(spl)}</span><b>Connectors</b><span>${fmtL(con)}</span>
+   <b>Total loss</b><span>${fmtL(tl)}</span><b>${n.type==='ont'?'ONT Rx':'Power here'}</b><span>${fmtP(end)}</span></div>
+   ${n.type==='ont'?`<span class="tag ${status(end)}">${STXT[status(end)]}</span>`:''}
+   <div class="btns"><button class="btn" data-act="back">← Back</button><button class="btn" data-act="copyrep">Copy report</button></div>`];
+}
+function vList(){
+  const C=R.C;const ord=[];const seen=new Set();
+  const walk=n=>{if(seen.has(n.id))return;seen.add(n.id);ord.push(n);(R.kids[n.id]||[]).slice().sort((a,b)=>(a.port||0)-(b.port||0)).forEach(walk);};
+  S.nodes.filter(n=>!n.parent||!R.by[n.parent]).forEach(walk);S.nodes.forEach(walk);
+  const showPoles=S._lp;
+  const rows=ord.filter(n=>showPoles||n.type!=='pole').map(n=>{const c=C[n.id]||{};const v=n.type==='ont'?c.rx:c.pin;const s=n.type==='ont'?status(c.rx):'';
+    return `<tr class="click" data-sel="${n.id}"><td><span style="color:${TYPES[n.type].color}">●</span> ${esc(n.name)}</td><td>${fmtD(c.dist)}</td><td>${v==null?'—':v.toFixed(2)}</td><td>${n.type==='ont'?`<span class="tag ${s}">${STXT[s]}</span>`:(c.out&&c.out[0]!=null?c.out.filter(x=>x!=null).map(x=>x.toFixed(2)).join(' / '):'—')}</td></tr>`;}).join('');
+  return ['All items',`<label class="muted"><input type="checkbox" id="lPoles" style="width:auto" ${showPoles?'checked':''}> show route points</label>
+   <table><tr><th>Item</th><th>From start</th><th>In / Rx dBm</th><th>Out dBm</th></tr>${rows||'<tr><td colspan=4>No items</td></tr>'}</table>
+   <div class="btns"><button class="btn" data-act="back">← Back</button></div>`];
+}
+function vMeasure(){
+  if(meas.length<2)return ['📏 Measure',`<p class="muted">Tap ${meas.length?'the end':'the start'} point on the map, or tap an item. Tap items to also get the distance along the fiber.</p><div class="btns"><button class="btn" data-act="mexit">Done</button></div>`];
+  const [a,b]=meas,d=hav(a,b);let fx='';
+  if(a.node&&b.node){const na=R.by[a.node],nb=R.by[b.node];const fd=na&&nb?fiberBetween(na,nb):null;
+    fx=`<b>${esc(na.name)} → ${esc(nb.name)}</b><span></span><b>Along fiber route</b><span>${fd==null?'not connected':fmtD(fd)}</span>${fd!=null?`<b>Fiber loss</b><span>${fmtL(fd/1000*S.set.lossKm)}</span>`:''}`;
+    const ca=R.C[na.id],cb=R.C[nb.id];if(ca&&cb&&ca.pin!=null&&cb.pin!=null)fx+=`<b>Power difference</b><span>${fmtL(Math.abs(ca.pin-cb.pin))}</span>`;}
+  return ['📏 Distance',`<div class="pw">${fmtD(d)}</div><div class="kv"><b>Straight line (GPS)</b><span>${d.toFixed(1)} m</span>${fx}</div>
+   <div class="btns"><button class="btn" data-act="mreset">New measure</button><button class="btn" data-act="mexit">Done</button></div>`];
+}
+function bindSheet(){
+  const n=sel&&R.by[sel];
+  $('sBody').querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>act(b.dataset.act,n));
+  $('sBody').querySelectorAll('[data-sel]').forEach(r=>r.onclick=()=>{const x=R.by[r.dataset.sel];sel=x.id;sheetView='node';map.panTo([x.lat,x.lng]);render();});
+  const lp=$('lPoles');if(lp)lp.onchange=()=>{S._lp=lp.checked;renderSheet();};
+  const et=$('eType');if(et)et.onchange=()=>{n.type=et.value;if(n.type==='plc'&&!PLC[n.ratio])n.ratio='1x8';if(n.type==='fbt'&&!FBT.includes(n.ratio))n.ratio='70/30';if(n.type==='olt'){n.parent=null;if(n.power==null)n.power=S.set.oltPower;}delete n.loss;render();};
+  const er=$('eRatio');if(er)er.onchange=()=>{n.ratio=er.value;delete n.l1;delete n.l2;render();};
+  const ec=$('eChart');if(ec)ec.onclick=e=>{e.preventDefault();chart(n.ratio);};
+}
+function act(a,n){
+  switch(a){
+  case 'edit':sheetView='edit';renderSheet();break;
+  case 'report':sheetView='report';renderSheet();break;
+  case 'back':sheetView=n?'node':null;renderSheet();break;
+  case 'list':sheetView='list';renderSheet();break;
+  case 'settings':settings();break;
+  case 'help':help();break;
+  case 'loc':locBtn();break;
+  case 'addnext':setMode('add');toast('Choose a type and tap the map, or press ＋GPS');break;
+  case 'parent':pendingParent=n.id;hint('Tap the item that '+n.name+' should connect from');break;
+  case 'movegps':startGps(p=>{n.lat=p.lat;n.lng=p.lng;render();toast(n.name+' moved to GPS (±'+Math.round(p.acc)+' m)');});break;
+  case 'movetap':pendingMove=n.id;hint('Tap the new position for '+n.name);break;
+  case 'nav':{const u=`https://www.google.com/maps/dir/?api=1&destination=${n.lat},${n.lng}`;window.open(u,'_blank');break;}
+  case 'del':modal(`<h3>Delete ${esc(n.name)}?</h3><p class="muted">Items connected after it will be connected to the previous item.</p><div class="btns"><button class="btn d" id="dOk">Delete</button><button class="btn" data-close>Cancel</button></div>`);$('dOk').onclick=()=>{closeModal();delNode(n);};break;
+  case 'esave':{n.name=$('eName').value.trim()||n.name;
+    if($('ePow'))n.power=num($('ePow').value,S.set.oltPower);
+    if($('eLoss')){const v=$('eLoss').value;if(v==='')delete n.loss;else n.loss=+v;}
+    if($('eCut'))n.cut=$('eCut').value==='1';
+    ['l1','l2'].forEach(k=>{const e=$('e'+k.toUpperCase());if(e){if(e.value==='')delete n[k];else n[k]=+e.value;}});
+    if($('ePort'))n.port=+$('ePort').value;
+    n.notes=$('eNote').value;sheetView='node';render();toast('Saved');break;}
+  case 'ecancel':sheetView='node';renderSheet();break;
+  case 'copyrep':copy($('sBody').innerText);break;
+  case 'mreset':meas=[];measLayer.clearLayers();renderSheet();break;
+  case 'mexit':setMode('select');sheetView=sel?'node':null;renderSheet();break;
+  }
+}
+
+/* ===================== modal / menu ===================== */
+function modal(h){$('mBox').innerHTML=h;$('modal').classList.add('show');$('mBox').querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModal);}
+function closeModal(){$('modal').classList.remove('show');}
+$('modal').onclick=e=>{if(e.target.id==='modal')closeModal();};
+function menu(){
+  modal(`<h3>Menu</h3><div class="btns" style="flex-direction:column">
+   <button class="btn" id="m1">📋 All items &amp; power</button>
+   <button class="btn" id="m2">⚙ Power &amp; GPS settings</button>
+   <button class="btn" id="m3">🔍 Zoom to whole network</button>
+   <button class="btn" id="m4">💾 Export backup (JSON)</button>
+   <button class="btn" id="m5">🌍 Export KML (Google Earth)</button>
+   <button class="btn" id="m6">📄 Export CSV (Excel)</button>
+   <button class="btn" id="m7">📂 Import backup</button>
+   <button class="btn" id="m10">📈 Coupler (FBT) loss chart</button>
+   <button class="btn" id="m9">❓ Help</button>
+   <button class="btn d" id="m8">🗑 Clear whole map</button>
+   <button class="btn" data-close>Close</button></div>`);
+  $('m1').onclick=()=>{closeModal();sheetView='list';sheetMin=false;renderSheet();};
+  $('m2').onclick=settings;
+  $('m3').onclick=()=>{closeModal();fitAll();};
+  $('m4').onclick=()=>{closeModal();exportFile('slvs-ftth-'+stamp()+'.json',JSON.stringify({app:'SLVS FTTH Map',version:1,nodes:S.nodes,set:S.set,seq:S.seq},null,1),'application/json');};
+  $('m5').onclick=()=>{closeModal();exportFile('slvs-ftth-'+stamp()+'.kml',kml(),'application/vnd.google-earth.kml+xml');};
+  $('m6').onclick=()=>{closeModal();exportFile('slvs-ftth-'+stamp()+'.csv',csv(),'text/csv');};
+  $('m7').onclick=importDlg;
+  $('m9').onclick=help;
+  $('m10').onclick=()=>chart();
+  $('m8').onclick=()=>{modal(`<h3>Clear the whole map?</h3><p>All items will be deleted from this phone. Export a backup first if you need it.</p><div class="btns"><button class="btn d" id="cOk">Delete everything</button><button class="btn" data-close>Cancel</button></div>`);
+    $('cOk').onclick=()=>{S.nodes=[];S.seq=1;sel=null;sheetView=null;closeModal();render();};};
+}
+function settings(){
+  const s=S.set;
+  modal(`<h3>⚙ Power &amp; GPS settings</h3>
+   <div class="row2"><div><label class="f">OLT Tx power (dBm)</label><input id="sP" type="number" step="0.1" value="${s.oltPower}"></div>
+   <div><label class="f">Wavelength</label><select id="sW">${Object.keys(WL).map(w=>`<option${w===s.wl?' selected':''}>${w}</option>`).join('')}</select></div></div>
+   <div class="row2"><div><label class="f">Fiber loss (dB/km)</label><input id="sK" type="number" step="0.01" value="${s.lossKm}"></div>
+   <div><label class="f">Splice loss / joint (dB)</label><input id="sS" type="number" step="0.01" value="${s.spliceLoss}"></div></div>
+   <div class="row2"><div><label class="f">Connector loss (dB)</label><input id="sC" type="number" step="0.05" value="${s.connLoss}"></div>
+   <div><label class="f">Coupler losses</label><button class="btn" id="sChart" style="width:100%">FBT loss chart</button></div></div>
+   <div class="row2"><div><label class="f">ONT sensitivity (dBm)</label><input id="sN" type="number" step="0.5" value="${s.sens}"></div>
+   <div><label class="f">ONT overload (dBm)</label><input id="sO" type="number" step="0.5" value="${s.overload}"></div></div>
+   <div class="row2"><div><label class="f">Safety margin (dB)</label><input id="sM" type="number" step="0.5" value="${s.margin}"></div>
+   <div><label class="f">Show fiber lengths</label><select id="sL"><option value="0">No</option><option value="1"${s.showLen?' selected':''}>Yes</option></select></div></div>
+   <div class="row2"><div><label class="f">Record every (m)</label><input id="sR" type="number" value="${s.recInt}"></div>
+   <div><label class="f">Max GPS error (m)</label><input id="sA" type="number" value="${s.recAcc}"></div></div>
+   <p class="muted">PLC loss: ${Object.entries(PLC).map(([k,v])=>k+' '+v).join(', ')} dB. Coupler (FBT) losses come from the FBT parameter table (1310 &amp; 1550 nm).</p>
+   <div class="btns"><button class="btn p" id="sOk">Save</button><button class="btn" data-close>Cancel</button></div>`);
+  $('sW').onchange=()=>{$('sK').value=WL[$('sW').value];};
+  $('sChart').onclick=()=>chart();
+  $('sOk').onclick=()=>{const old=s.oltPower;
+    Object.assign(s,{oltPower:num($('sP').value,5),wl:$('sW').value,lossKm:num($('sK').value,.28),spliceLoss:num($('sS').value,.1),connLoss:num($('sC').value,.5),
+      sens:num($('sN').value,-27),overload:num($('sO').value,-8),margin:num($('sM').value,3),showLen:$('sL').value==='1',recInt:Math.max(2,num($('sR').value,20)),recAcc:Math.max(5,num($('sA').value,30))});
+    S.nodes.forEach(n=>{if(n.type==='olt'&&num(n.power,old)===old)n.power=s.oltPower;});
+    closeModal();render();toast('Settings saved');};
+}
+function chart(cur){
+  const rows=FBT.map(r=>{const t=FBT_TABLE[r];return `<tr${r===cur?' style="background:#fff8c4;font-weight:700"':''}><td>${r}</td><td>${r==='50/50'?'2.9 ~ 3.2':'&lt; '+t[0].toFixed(2)}</td><td>${r==='50/50'?'2.9 ~ 3.2':'&lt; '+t[1].toFixed(2)}</td></tr>`;}).join('');
+  const plc=Object.entries(PLC).map(([k,v])=>`<tr><td>${k}</td><td colspan="2">${v.toFixed(2)}</td></tr>`).join('');
+  modal(`<h3>FBT coupler loss chart</h3><p class="muted">Insertion loss (1310 &amp; 1550 nm), dB. Port1 = first %, Port2 = second % of the ratio. The app uses the maximum value (50/50 = 3.2 dB).</p>
+   <table><tr><th>Ratio</th><th>Port1 dB</th><th>Port2 dB</th></tr>${rows}</table>
+   <h4>PLC splitter loss</h4><table><tr><th>Ratio</th><th colspan="2">Loss dB (each port)</th></tr>${plc}</table>
+   <div class="btns"><button class="btn p" data-close>Close</button></div>`);
+}
+function help(){
+  modal(`<h3>How to use SLVS FTTH Map</h3><div class="muted" style="line-height:1.55;font-size:13.5px">
+  <p><b>Build the route:</b> Select an item, then add the next one — it connects automatically and the distance is measured from GPS coordinates. Use <b>＋GPS</b> while standing at each pole / box, or <b>Add</b> and tap the map.</p>
+  <p><b>Walk &amp; record:</b> select the start item, press record and walk the cable route. A route point is added every few metres.</p>
+  <p><b>Coupler / splitter:</b> add a <b>FBT Coupler</b> (50/50, 60/40, 70/30, 20/80, 10/90, 5/95) or <b>PLC Splitter</b> (1x2 … 1x64). The card shows input power and output of each leg. For a coupler, choose which leg (e.g. 70% or 30%) each next item is on with ✏️ Edit.</p>
+  <p><b>Fiber cut:</b> choose <b>✂️ Fiber cut</b> and tap the fiber line at the cut, or stand at the cut and press <b>＋GPS</b> — the joint snaps onto the nearest fiber. Splice loss is added to the power budget.</p>
+  <p><b>Distance start → end:</b> every item shows its distance from the start (OLT). Use <b>📏 Measure</b> and tap two items for straight-line and along-fiber distance.</p>
+  <p><b>Power path:</b> on any ONT tap <b>📊 Power path</b> for the full loss budget.</p>
+  <p>Data is saved on this phone. Export a JSON backup regularly.</p></div>
+  <div class="btns"><button class="btn p" data-close>OK</button></div>`);
+}
+function importDlg(){
+  modal(`<h3>Import backup</h3><div class="btns"><button class="btn p" id="iFile">Choose JSON file</button></div>
+   <label class="f">…or paste backup text</label><textarea id="iTxt" rows="4"></textarea>
+   <div class="btns"><button class="btn" id="iPaste">Import pasted text</button><button class="btn" data-close>Cancel</button></div>`);
+  $('iFile').onclick=()=>$('fileIn').click();
+  $('iPaste').onclick=()=>doImport($('iTxt').value);
+}
+$('fileIn').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>doImport(r.result);r.readAsText(f);e.target.value='';};
+function doImport(t){
+  try{const d=JSON.parse(t);if(!Array.isArray(d.nodes))throw 0;
+    S.nodes=d.nodes.filter(n=>n&&n.id&&isFinite(n.lat)&&isFinite(n.lng)&&TYPES[n.type]);S.set=Object.assign({},DEF,d.set||{});S.seq=d.seq||S.nodes.length+1;
+    sel=null;sheetView=null;closeModal();render();fitAll();toast('Imported '+S.nodes.length+' items');}
+  catch(e){toast('Not a valid SLVS FTTH backup');}
+}
+const stamp=()=>new Date().toISOString().slice(0,16).replace(/[-:T]/g,'');
+function exportFile(name,text,mime){
+  if(window.Android&&Android.saveFile){Android.saveFile(name,text);return;}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},3000);toast('Saved '+name);}
+  catch(e){modal(`<h3>${esc(name)}</h3><textarea rows="8">${esc(text)}</textarea><div class="btns"><button class="btn p" id="cpy">Copy</button><button class="btn" data-close>Close</button></div>`);$('cpy').onclick=()=>copy(text);}
+}
+function copy(t){if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>toast('Copied'),()=>toast('Copy failed'));}
+function rowInfo(n){const c=R.C[n.id]||{};return {dist:c.dist,seg:c.seg,pin:c.pin,out:c.out,rx:c.rx};}
+function csv(){
+  const h=['Name','Type','Ratio','Latitude','Longitude','Connected from','Port','Segment m','From start m','Input dBm','Output dBm','Output2 dBm','ONT Rx dBm','Status','Cut joint','Notes'];
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const f=v=>v==null?'':v.toFixed(2);
+  return [h.join(',')].concat(S.nodes.map(n=>{const c=rowInfo(n),p=R.by[n.parent];
+    return [n.name,TYPES[n.type].label,n.ratio||'',n.lat.toFixed(7),n.lng.toFixed(7),p?p.name:'',p?portLabel(p,n.port):'',f(c.seg),f(c.dist),f(c.pin),f(c.out&&c.out[0]),f(c.out&&c.out[1]),f(c.rx),n.type==='ont'?STXT[status(c.rx)]:'',n.cut?'Yes':'',n.notes||''].map(q).join(',');})).join('\n');
+}
+function kml(){
+  const x=s=>esc(s);let pm='';
+  const col={olt:'ff2f2fd3',pole:'ff7a6e54',joint:'ff007cf5',plc:'ffa21f7b',fbt:'ffc06515',ont:'ff327d2e'};
+  Object.keys(col).forEach(k=>pm+=`<Style id="${k}"><IconStyle><color>${col[k]}</color><scale>${k==='pole'?0.5:1}</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle></Style>`);
+  pm+=`<Style id="fiber"><LineStyle><color>ffc1ac00</color><width>4</width></LineStyle></Style>`;
+  S.nodes.forEach(n=>{const c=rowInfo(n);
+    pm+=`<Placemark><name>${x(n.name)}</name><styleUrl>#${n.type}</styleUrl><description>${x(TYPES[n.type].label+(n.ratio?' '+n.ratio:'')+' | From start: '+fmtD(c.dist)+' | In: '+fmtP(c.pin)+(n.type==='ont'?' | Rx: '+fmtP(c.rx):'')+(n.cut?' | FIBER CUT JOINT':'')+(n.notes?' | '+n.notes:''))}</description><Point><coordinates>${n.lng},${n.lat},0</coordinates></Point></Placemark>`;
+    const p=R.by[n.parent];if(p)pm+=`<Placemark><name>${x(p.name+' → '+n.name)}</name><styleUrl>#fiber</styleUrl><description>${x(fmtD(c.seg))}</description><LineString><tessellate>1</tessellate><coordinates>${p.lng},${p.lat},0 ${n.lng},${n.lat},0</coordinates></LineString></Placemark>`;});
+  return `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>SLVS FTTH Map</name>${pm}</Document></kml>`;
+}
+function fitAll(){if(!S.nodes.length)return;const b=L.latLngBounds(S.nodes.map(n=>[n.lat,n.lng]));map.fitBounds(b.pad(.2),{maxZoom:19});}
+function locBtn(){follow=!follow||!gps;$('fLoc').classList.toggle('on',follow);startGps(p=>map.setView([p.lat,p.lng],Math.max(map.getZoom(),18)));}
+
+/* ===================== wire up ===================== */
+document.querySelectorAll('#modebar .chip[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+$('bRec').onclick=toggleRec;
+$('fGps').onclick=gpsAdd;
+$('fLoc').onclick=locBtn;
+$('bMenu').onclick=menu;
+$('bLayer').onclick=()=>{S.set.sat=!S.set.sat;if(S.set.sat){map.removeLayer(osm);sat.addTo(map);}else{map.removeLayer(sat);osm.addTo(map);}$('bLayer').classList.toggle('on',S.set.sat);save();};
+$('bLbl').onclick=()=>{S.set.showLabels=!S.set.showLabels;$('bLbl').classList.toggle('on',S.set.showLabels);render();};
+$('sHandle').onclick=e=>{if(e.target.id==='sClose')return;sheetMin=!sheetMin;renderSheet();};
+$('sClose').onclick=()=>{sel=null;if(mode==='measure')setMode('select');sheetView=null;sheetMin=false;render();};
+map.on('dragstart',()=>{if(follow){follow=false;$('fLoc').classList.remove('on');}});
+$('bLayer').classList.toggle('on',S.set.sat);$('bLbl').classList.toggle('on',S.set.showLabels);
+buildTypebar();render();if(S.nodes.length)fitAll();
+if(!window.isSecureContext)toast('GPS needs HTTPS or the SLVS Android app');
+</script>
+</body>
+</html>
