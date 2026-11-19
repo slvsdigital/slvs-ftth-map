@@ -153,6 +153,15 @@ tr.click td{cursor:pointer}
 .crow .nmw{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .legend{font-size:11.5px;color:var(--mut);margin:2px 0 4px}
 .log{font-size:12.5px;color:#d6d8db;border-left:3px solid #ff7043;padding:2px 8px;margin:4px 0}
+.jrow{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid #3a3b40;flex-wrap:nowrap}
+.jrow:last-child{border-bottom:0}
+.jrow .sw{width:22px;height:22px;border-radius:50%;border:2px solid #fff6;flex:none}
+.jrow .in{width:92px;flex:none;font-weight:700;font-size:13px;line-height:1.15}
+.jrow .ar{color:var(--mut);flex:none}
+.jrow select{flex:1;min-width:0;padding:7px 6px;font-size:13.5px}
+.jrow .rb{border:0;border-radius:6px;background:#ff7043;color:#000;font-weight:800;width:36px;height:34px;flex:none}
+.jrow .st{font-size:10px;font-weight:800;border-radius:4px;padding:1px 4px;margin-left:2px}
+.st.w{background:#2e7d32;color:#fff}.st.s{background:#546e7a;color:#fff}.st.f{background:#c62828;color:#fff}
 .cdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;border:1px solid #fff8}
 /* drawer */
 #scrim{position:fixed;inset:0;background:#0009;z-index:1400;display:none}
@@ -333,7 +342,7 @@ const STXT={ok:'OK',warn:'Low margin',low:'Too low',high:'Too high',none:'No sou
 const SCOL={ok:'#2e7d32',warn:'#f9a825',low:'#c62828',high:'#e65100',none:'#78909c'};
 const folderName=id=>(S.folders.find(f=>f.id===id)||S.folders[0]).name;
 const visible=n=>{const f=S.folders.find(f=>f.id===n.folder);return (!f||f.vis!==false)&&!S.hide[n.type];};
-function splText(n){return (n.splices||[]).map(s=>s.a+' to '+s.b.toLowerCase()).join('\n');}
+function splText(n){return (n.splices||[]).map(s=>s.b==='—'?s.a+' not spliced':s.a+' to '+s.b.toLowerCase()).join('\n');}
 
 /* ============ power & distance engine ============ */
 function compute(){
@@ -433,9 +442,9 @@ function onLine(child,ll){
   if(tool==='cut'){cutDialog(child,ll);return;}
   fiberDlg(child,ll);
 }
-function changeCoreDlg(child){
+function changeCoreDlg(child,pre){
   const p=R.by[child.parent];if(!p||!child.cores)return;
-  const w=wk(child),b=bad(child);let from=w[0],to=null;
+  let w=wk(child);if(pre!=null&&!w.includes(pre))w=w.concat([pre]).sort((a,b)=>a-b);let from=pre!=null?pre:w[0],to=null;
   const spare=()=>Array.from({length:child.cores},(_,i)=>i).filter(i=>!wk(child).includes(i)&&!bad(child).includes(i));
   const chip=(i,on,attr)=>`<button class="chip2${on?' on':''}" ${attr}="${i}"><span class="cdot" style="background:${coreCol(i)};margin:0"></span>${i+1} ${FIBER[i%12][0]}</button>`;
   const draw=()=>{
@@ -464,10 +473,17 @@ function doChangeCore(child,from,to,whole,spl,note){
     let top=null;segs.forEach(x=>{const p=R.by[x.parent];if(p&&!ids.has(p.id))top=p;});
     const bottoms=segs.filter(x=>!(R.kids[x.id]||[]).some(k=>ids.has(k.id)));
     if(top){
-      if(top.type==='joint'){top.splices=top.splices||[];const sp=top.splices.find(z=>z.b===oc);if(sp)sp.b=nc;else top.splices.push({a:oc,b:nc});msg.push(top.name+': '+(sp?sp.a:oc)+' to '+nc.toLowerCase());}
+      if(top.type==='joint'){top.splices=top.splices||[];const sp=top.splices.find(z=>z.b===oc);const src=sp?sp.a:oc;
+        top.splices=top.splices.filter(z=>z===sp||z.b!==nc);
+        if(sp)sp.b=nc;else top.splices.push({a:oc,b:nc});
+        if(src!==nc&&!top.splices.some(z=>z.a===nc))top.splices.push({a:nc,b:'—'});
+        msg.push(top.name+': '+src+' to '+nc.toLowerCase());}
       else if(top.type==='liu'){const o=top.lport||(top.lport={work:[],bad:[],lbl:[]});if(to<(top.lp||12)){o.lbl=o.lbl||[];o.lbl[to]=o.lbl[from]||o.lbl[to]||'';setSt(o,from,'f');setSt(o,to,'w');msg.push(top.name+': patch moved to port '+(to+1));}}
     }
-    bottoms.forEach(bn=>{if(bn.type==='joint'){bn.splices=bn.splices||[];const sp=bn.splices.find(z=>z.a===oc);if(sp)sp.a=nc;else bn.splices.push({a:nc,b:oc});msg.push(bn.name+': '+nc+' to '+(sp?sp.b:oc).toLowerCase());}});
+    bottoms.forEach(bn=>{if(bn.type==='joint'){bn.splices=bn.splices||[];bn.splices=bn.splices.filter(z=>z.a!==nc);const sp=bn.splices.find(z=>z.a===oc);
+        if(sp)sp.a=nc;else bn.splices.push({a:nc,b:oc});
+        if(!bn.splices.some(z=>z.a===oc))bn.splices.push({a:oc,b:'—'});
+        msg.push(bn.name+': '+nc+' to '+(sp?sp.b:oc).toLowerCase());}});
   }
   const t=`Core ${from+1} ${oc} → ${to+1} ${nc}`+(note?' – '+note:'')+(msg.length?' ['+msg.join('; ')+']':'');
   (child.log=child.log||[]).push({d:new Date().toISOString(),t});
@@ -643,7 +659,7 @@ function renderInfo(){
       <b>Folder</b><span>${esc(folderName(n.folder))}</span>
       <b>GPS</b><span>${n.lat.toFixed(6)}, ${n.lng.toFixed(6)}</span>
       ${n.phone?`<b>Phone</b><span>${esc(n.phone)}</span>`:''}</div>
-      ${n.type==='liu'?liuHtml(n):''}
+      ${n.type==='liu'?liuHtml(n):''}${n.type==='joint'?jointHtml(n):''}
       ${(n.log||[]).length?'<div class="muted" style="margin-top:8px">Core change log</div>'+n.log.slice().reverse().map(l=>`<div class="log">${fmtDate(l.d)}<br>${esc(l.t)}</div>`).join(''):''}
       ${p?'<div class="btns"><button class="btn" id="iTrace">🌈 Core trace</button><button class="btn" id="iPow">📊 Power path</button></div>':''}
       <div class="imgs" id="iImgs" style="margin-top:8px"></div>`;
@@ -652,6 +668,27 @@ function renderInfo(){
   box.classList.add('show');
   if(big){loadThumbs(n,$('iImgs'));if($('iTrace')){$('iTrace').onclick=e=>{e.stopPropagation();tracePage(n);};$('iPow').onclick=e=>{e.stopPropagation();reportPage(n);};}}
   adjust();
+}
+function jointMap(j,outN){
+  const inC=j.cores||12,outC=outN&&outN.cores?outN.cores:12,rows=[];
+  for(let i=0;i<inC;i++){
+    const nm=FIBER[i%12][0],sp=(j.splices||[]).find(z=>z.a===nm),on=sp?sp.b:nm;
+    let oi=FIBER.findIndex(f=>f[0]===on);if(oi>11)oi=-1;
+    if(oi>=0){const t=Math.floor(i/12);if(oi+12*t<outC)oi+=12*t;else if(oi>=outC)oi=-1;}
+    rows.push({i,nm,oi,spliced:!!sp,inSt:j.cores?stOf({work:wk(j),bad:bad(j)},i):'s',outSt:outN&&outN.cores&&oi>=0?stOf({work:wk(outN),bad:bad(outN)},oi):'s'});
+  }
+  return rows;
+}
+const stTag=st=>`<span class="st ${st}">${st.toUpperCase()}</span>`;
+function jointHtml(n){
+  const outs=R.kids[n.id]||[];if(!n.cores&&!(n.splices||[]).length)return '';
+  let h='';
+  (outs.length?outs:[null]).forEach(o=>{
+    const rows=jointMap(n,o).filter(r=>r.inSt!=='s'||r.outSt!=='s'||r.spliced);
+    if(!rows.length)return;
+    h+=`<div class="muted" style="margin-top:8px">Splice box IN → OUT${o?' (to '+esc(o.name)+')':''}</div><div class="clist">`+rows.map(r=>`<div class="jrow"><span class="sw" style="background:${coreCol(r.i)}"></span><span class="in">${r.i+1} ${r.nm}${stTag(r.inSt)}</span><span class="ar">→</span>${r.oi>=0?`<span class="sw" style="background:${coreCol(r.oi)}"></span><span class="in">${r.oi+1} ${FIBER[r.oi%12][0]}${stTag(r.outSt)}</span>`:'<span class="muted">not connected</span>'}</div>`).join('')+'</div>';
+  });
+  return h;
 }
 function liuHtml(n){const o=n.lport||{work:[],bad:[],lbl:[]},lp=n.lp||12;
   return `<div class="muted" style="margin-top:8px">${lp}-port LIU · ${stCount(o,lp)}</div><div class="clist">`+Array.from({length:lp},(_,i)=>{const st=stOf(o,i);
@@ -729,9 +766,20 @@ function editPage(id,keep){
   if(ed.type==='joint')ft=`<div class="row2"><div><label class="f">Splice loss (dB)</label><input id="eLoss" type="number" step="0.01" placeholder="${S.set.spliceLoss}" value="${ed.loss==null?'':ed.loss}"></div><div><label class="f">Fiber cut joint</label><select id="eCut"><option value="0">No</option><option value="1"${ed.cut?' selected':''}>Yes</option></select></div></div>`;
   if(p&&ports(p))ft+=`<label class="f">Connected to ${esc(p.name)} on</label><select id="ePort">${Array.from({length:ports(p)},(_,i)=>`<option value="${i}"${(ed.port||0)===i?' selected':''}>${portLabel(p,i)}</option>`).join('')}</select>`;
   else if(p)ft+=`<div class="muted" style="margin-top:8px">Connected from ${esc(p.name)}</div>`;
-  const spl=ed.type==='joint'?`<div class="box"><h5>Fiber colour splices</h5>
-     ${(ed.splices||[]).map((s,i)=>`<div class="spl"><select data-sa="${i}">${FIBER.map(([c])=>`<option${c===s.a?' selected':''}>${c}</option>`).join('')}</select><span>→</span><select data-sb="${i}">${FIBER.map(([c])=>`<option${c===s.b?' selected':''}>${c}</option>`).join('')}</select><button class="x" data-sx="${i}">✕</button></div>`).join('')}
-     <div class="btns"><button class="btn" id="sAdd">＋ Add splice</button><button class="btn" id="s12">Auto 1:1 (12 colours)</button>${(ed.splices||[]).length?'<button class="btn d" id="sClr">Clear</button>':''}</div></div>`:'';
+  let spl='';
+  if(ed.type==='joint'){
+    const outs=R.kids[id]||[],och=outs.find(k=>k.id===ed._out)||outs[0];
+    const outC=och&&och.cores?och.cores:12,rows=jointMap(ed,och);
+    spl=`<div class="box"><h5>Splice box (IN → OUT)</h5>
+     <div class="muted">IN = ${ed.cores?ed.cores+'F':'cable not set'} from ${p?esc(p.name):'—'} · OUT = ${och?(och.cores?och.cores+'F':'cable not set')+' to '+esc(och.name):'no outgoing fiber yet'}</div>
+     ${outs.length>1?`<div style="margin-top:6px">${outs.map(o=>`<button class="chip2${o===och?' on':''}" data-jout="${o.id}">to ${esc(o.name)}</button>`).join('')}</div>`:''}
+     <div class="legend" style="margin-top:6px">Choose the OUT colour for each IN core. 🔁 = core damaged after this joint → move to a spare core.</div>
+     <div class="clist">${rows.map(r=>`<div class="jrow"><span class="sw" style="background:${coreCol(r.i)}"></span><span class="in">${r.i+1} ${r.nm}${stTag(r.inSt)}</span><span class="ar">→</span>
+       <select data-jo="${r.i}"><option value="-1"${r.oi<0?' selected':''}>— not spliced</option>${Array.from({length:outC},(_,k)=>`<option value="${k}"${k===r.oi?' selected':''}>${k+1} ${FIBER[k%12][0]}${och&&och.cores?' ('+({w:'W',s:'S',f:'F'})[stOf({work:wk(och),bad:bad(och)},k)]+')':''}</option>`).join('')}</select>
+       ${r.oi>=0?`<span class="sw" style="background:${coreCol(r.oi)}"></span>${stTag(r.outSt)}`:''}
+       ${och&&och.cores&&r.oi>=0&&(r.inSt==='w'||r.outSt==='w'||r.outSt==='f')?`<button class="rb" data-jchg="${r.oi}" title="Change core">🔁</button>`:''}</div>`).join('')}</div>
+     <div class="btns"><button class="btn" id="sStraight">All straight (Blue to blue…)</button></div></div>`;
+  }
   const d=new Date(ed.created),pz=x=>String(x).padStart(2,'0');
   const dv=isNaN(d)?'':`${d.getFullYear()}-${pz(d.getMonth()+1)}-${pz(d.getDate())}`,tv=isNaN(d)?'':`${pz(d.getHours())}:${pz(d.getMinutes())}:${pz(d.getSeconds())}`;
   openPage({head:`<button class="hb" id="eBack">←</button><button class="hb" id="eFold" style="width:auto;font-size:14px;gap:8px;padding:0 6px">📁 ${esc(folderName(ed.folder))}</button><span class="ttl"></span><button class="hb" id="eDel">⋮</button><button class="hb" id="eSave">💾</button>`,
@@ -782,6 +830,13 @@ function editPage(id,keep){
   if($('sAdd'))$('sAdd').onclick=()=>{ed.splices=ed.splices||[];const i=ed.splices.length%12;ed.splices.push({a:FIBER[i][0],b:FIBER[i][0]});redraw();};
   if($('s12'))$('s12').onclick=()=>{ed.splices=FIBER.slice(0,12).map(([c])=>({a:c,b:c}));redraw();};
   if($('sClr'))$('sClr').onclick=()=>{ed.splices=[];redraw();};
+  document.querySelectorAll('[data-jout]').forEach(b=>b.onclick=()=>{grab();ed._out=b.dataset.jout;editPage(id,true);});
+  document.querySelectorAll('[data-jo]').forEach(sl=>sl.onchange=()=>{const i=+sl.dataset.jo,a=FIBER[i%12][0],v=+sl.value;
+    ed.splices=(ed.splices||[]).filter(z=>z.a!==a);
+    if(v<0)ed.splices.push({a,b:'—'});else{const b2=FIBER[v%12][0];if(b2!==a)ed.splices.push({a,b:b2});}
+    redraw();});
+  if($('sStraight'))$('sStraight').onclick=()=>{ed.splices=[];redraw();};
+  document.querySelectorAll('[data-jchg]').forEach(b=>b.onclick=()=>{grab();const outs=R.kids[id]||[],och=outs.find(k=>k.id===ed._out)||outs[0];commitEdit(id);closePage();changeCoreDlg(och,+b.dataset.jchg);});
   document.querySelectorAll('[data-col]').forEach(b=>b.onclick=()=>{ed.color=b.dataset.col||null;document.querySelectorAll('[data-col]').forEach(x=>x.classList.toggle('on',x===b));});
   const ph=()=>$('ePhone').value.replace(/[^\d+]/g,'');
   $('pCall').onclick=()=>{if(ph()){openUrl('tel:'+ph());$('pNum').textContent='Call '+ph();}};
@@ -966,6 +1021,7 @@ function help(){
   <p><b>Cable &amp; cores:</b> tap a fiber line (or ⋮ → Fiber cable, core &amp; length) and choose 1F, 2F, 4F, 6F, 12F or 24F. All core colours are listed below – switch <b>Working</b> on beside each core in use (e.g. 4F with cores 1 and 2 working). The line is drawn in the first working core colour and shows e.g. “4F (2W)”. Type the real cable length if it differs from the GPS line – distance and loss use it.</p>
   <p><b>LIU:</b> add an <b>LIU / ODF</b> at the start (6, 12 or 24 port). Each port shows its fiber colour; set W / S / F and write where it goes.</p>
   <p><b>Faulty core:</b> on any fiber set each core W (working), S (spare) or F (faulty). If a working core (e.g. Blue) is damaged, use <b>🔁 Change core</b> and pick a spare (e.g. Orange). The app marks Blue faulty, Orange working, and updates the joints at both ends (Blue to orange … orange to blue) so the core trace follows the new core. Every change is saved in the change log.</p>
+  <p><b>Joint splice box:</b> Edit a joint → <b>Splice box (IN → OUT)</b>. Each incoming core (with W/S/F) shows which outgoing core it is spliced to – change the OUT colour, or press 🔁 if the outgoing core is damaged: choose a spare (e.g. Orange) and the next joint is updated back (Orange to blue).</p>
   <p><b>Core trace:</b> select the end point (e.g. ONT) → ⋮ → <b>Core trace</b>. It follows the core from the start through every joint (using the colour splices saved in each joint, e.g. Blue to orange) and shows the core colour on every segment. <b>Show on map</b> colours the route.</p>
   <p><b>Walk &amp; record:</b> select the start marker, press ⏺ and walk the cable route.</p>
   <p><b>Distance start → end:</b> each marker shows its distance from the OLT. 📏 measures between any two points.</p>
@@ -992,7 +1048,7 @@ function drawer(){
    <div class="dsec">Help &amp; Feedback</div>
    <div class="ditem" id="dSet"><span class="ic">⚙</span><span class="tx">Settings</span></div>
    <div class="ditem" id="dHelp"><span class="ic">❓</span><span class="tx">Help</span></div>
-   <div class="ditem" id="dAbout"><span class="ic">ⓘ</span><span class="tx">About<small>SLVS FTTH Map 2.5</small></span></div>`;
+   <div class="ditem" id="dAbout"><span class="ic">ⓘ</span><span class="tx">About<small>SLVS FTTH Map 2.6</small></span></div>`;
   $('drawer').classList.add('show');$('scrim').classList.add('show');
   const go=f=>()=>{closeDrawer();f();};
   $('dBk').onclick=go(backupMenu);$('dLast').onclick=go(backupMenu);
@@ -1003,7 +1059,7 @@ function drawer(){
   document.querySelectorAll('[data-fr]').forEach(c=>c.onclick=()=>folderMenu(c.dataset.fr));
   $('dAddF').onclick=()=>folderName_dlg(null);
   $('dSum').onclick=go(summaryPage);$('dChart').onclick=go(chart);$('dCore').onclick=go(coreChart);$('dSet').onclick=go(settingsPage);$('dHelp').onclick=go(help);
-  $('dAbout').onclick=go(()=>modal(`<h3>SLVS FTTH Map</h3><p>Version 2.5</p><p class="muted">FTTH route mapping with GPS, fiber distance, FBT coupler / PLC splitter power budget and fiber-cut joints.</p><p class="muted">Maps © OpenStreetMap contributors, imagery © Esri.</p><div class="mfoot"><button data-close>OK</button></div>`));
+  $('dAbout').onclick=go(()=>modal(`<h3>SLVS FTTH Map</h3><p>Version 2.6</p><p class="muted">FTTH route mapping with GPS, fiber distance, FBT coupler / PLC splitter power budget and fiber-cut joints.</p><p class="muted">Maps © OpenStreetMap contributors, imagery © Esri.</p><div class="mfoot"><button data-close>OK</button></div>`));
 }
 function closeDrawer(){$('drawer').classList.remove('show');$('scrim').classList.remove('show');}
 $('scrim').onclick=closeDrawer;
