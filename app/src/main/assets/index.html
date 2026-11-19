@@ -135,6 +135,16 @@ tr.click td{cursor:pointer}
 .tg input:checked+i:after{left:21px}
 .tg input:checked~span{color:#b9f6ca}
 .thd{font-size:12px;color:var(--mut);font-weight:700;padding:8px 0 2px;display:flex;align-items:center;gap:6px}
+.tl{position:relative;padding-left:4px}
+.tn{display:flex;gap:10px;align-items:flex-start;padding:6px 0}
+.tn .ic{width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;border:2px solid #fff8;font-size:13px}
+.tn b{font-size:14.5px}
+.ts{display:flex;gap:10px;align-items:stretch;min-height:44px}
+.ts .bar{width:30px;flex:none;display:flex;justify-content:center}
+.ts .bar i{width:8px;border-radius:4px;border:1px solid #0008}
+.ts .tx{padding:6px 0;font-size:13px;color:#d6d8db;line-height:1.45}
+.chip2{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:18px;background:#3a3b40;color:#fff;padding:6px 11px;margin:3px;font-weight:700;font-size:13px}
+.chip2.on{outline:3px solid var(--acc)}
 .cdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;border:1px solid #fff8}
 /* drawer */
 #scrim{position:fixed;inset:0;background:#0009;z-index:1400;display:none}
@@ -217,6 +227,7 @@ tr.click td{cursor:pointer}
 /* ============ constants ============ */
 const TYPES={
   olt:  {label:'OLT / Source',  short:'OLT',    color:'#e53935',icon:'⚡',pre:'OLT-'},
+  sw:   {label:'Switch / SFP source',short:'Switch',color:'#ff7043',icon:'⇄',pre:'SW-'},
   pole: {label:'Route point / Pole',short:'Pole',color:'#607d8b',icon:'•',pre:'P-'},
   joint:{label:'Joint / Splice',short:'Joint',  color:'#76b900',icon:'✚',pre:'Joint-'},
   fbt:  {label:'FBT Coupler',   short:'Coupler',color:'#1e88e5',icon:'C',pre:'CPL-'},
@@ -232,6 +243,7 @@ const WL={'1310':0.35,'1490':0.28,'1550':0.25};
 const FIBER=[['Blue','#1e64ff'],['Orange','#ff8a00'],['Green','#2e9e3e'],['Brown','#8d5524'],['Slate','#8a9aa5'],['White','#ffffff'],['Red','#e53935'],['Black','#111111'],['Yellow','#ffe600'],['Violet','#8e24aa'],['Rose','#f48fb1'],['Aqua','#26c6da'],['Natural','#e8dcc0']];
 const FCOL=Object.fromEntries(FIBER);
 const CORES=[1,2,4,6,12,24];
+const SRC=new Set(['olt','sw']);
 const LIGHT=['White','Yellow','Natural','Aqua','Rose','Slate'];
 const coreCol=i=>FIBER[i%12][1];
 function coreLabel(i,cores){if(i==null)return '';const c=FIBER[i%12][0];return 'Core '+(i+1)+' '+c+((cores||0)>12?' (tube '+(i<12?'1 Blue':'2 Orange')+')':'');}
@@ -248,7 +260,7 @@ function coreList(cores,work,attr){
   return h+'</div>';
 }
 const PALETTE=['#1e88e5','#00acc1','#00897b','#76b900','#8bc34a','#cddc39','#fdd835','#fb8c00','#e53935','#d81b60','#8e24aa','#5e35b1','#6d4c41','#607d8b','#212121'];
-const DEF={oltPower:5,wl:'1490',lossKm:0.28,spliceLoss:0.1,connLoss:0.5,sens:-27,overload:-8,margin:3,recInt:20,recAcc:30,showLabels:true,showLen:false,showCable:true,defCores:12,mapType:'street'};
+const DEF={oltPower:5,swPower:0,wl:'1490',lossKm:0.28,spliceLoss:0.1,connLoss:0.5,sens:-27,overload:-8,margin:3,recInt:20,recAcc:30,showLabels:true,showLen:false,showCable:true,defCores:12,mapType:'street'};
 const KEY='slvs_ftth_v2';
 
 /* ============ state ============ */
@@ -256,7 +268,7 @@ let S=load();
 let sel=null,tool=null,meas=[],pendingParent=null,place=null,pageBack=null;
 let gps=null,watchId=null,follow=false,rec=false,recLast=null,recDist=0,recCount=0;
 let R={C:{},by:{},kids:{}};
-let addType='joint',connectOn=true;
+let addType='joint',connectOn=true,traceMap=null;
 
 function load(){
   let s=null;
@@ -293,7 +305,7 @@ function proj(p,a,b){const k=Math.cos(a.lat*Math.PI/180),ax=a.lng*k,ay=a.lat,dx=
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2600);}
 function fbtParts(r){const p=String(r||'50/50').split('/').map(Number);return [p[0]||50,p[1]||50];}
 function fbtLoss(n,port){const i=port?1:0,o=i?n.l2:n.l1;if(o!=null&&o!==''&&isFinite(+o))return +o;const t=FBT_TABLE[n.ratio];if(t)return t[i];return -10*Math.log10(fbtParts(n.ratio)[i]/100)+0.3;}
-function nodeLoss(n,port){const s=S.set;switch(n.type){case 'olt':return s.connLoss;case 'joint':return num(n.loss,s.spliceLoss);case 'plc':return num(n.loss,PLC[n.ratio]||0);case 'fbt':return fbtLoss(n,port);case 'ont':return s.connLoss;default:return 0;}}
+function nodeLoss(n,port){const s=S.set;switch(n.type){case 'olt':case 'sw':return s.connLoss;case 'joint':return num(n.loss,s.spliceLoss);case 'plc':return num(n.loss,PLC[n.ratio]||0);case 'fbt':return fbtLoss(n,port);case 'ont':return s.connLoss;default:return 0;}}
 function ports(n){if(n.type==='fbt')return 2;if(n.type==='plc')return parseInt(String(n.ratio).split('x')[1])||2;return 0;}
 function portLabel(p,port){if(!p)return '';if(p.type==='fbt'){const f=fbtParts(p.ratio);return 'Port'+(port?2:1)+' '+(port?f[1]:f[0])+'%';}if(p.type==='plc')return 'Port '+((port||0)+1);return '';}
 function status(rx){if(rx==null)return 'none';const s=S.set;if(rx>s.overload)return 'high';if(rx<s.sens)return 'low';if(rx<s.sens+s.margin)return 'warn';return 'ok';}
@@ -307,9 +319,9 @@ function splText(n){return (n.splices||[]).map(s=>s.a+' to '+s.b.toLowerCase()).
 function compute(){
   const by={},kids={},C={},st=S.set;
   S.nodes.forEach(n=>by[n.id]=n);
-  S.nodes.forEach(n=>{if(n.type==='olt')n.parent=null;if(n.parent&&by[n.parent])(kids[n.parent]||(kids[n.parent]=[])).push(n);});
+  S.nodes.forEach(n=>{if(SRC.has(n.type))n.parent=null;if(n.parent&&by[n.parent])(kids[n.parent]||(kids[n.parent]=[])).push(n);});
   const stack=[];
-  S.nodes.forEach(n=>{if(!n.parent||!by[n.parent])stack.push([n,n.type==='olt'?num(n.power,st.oltPower):null,0,0,n.id]);});
+  S.nodes.forEach(n=>{if(!n.parent||!by[n.parent])stack.push([n,SRC.has(n.type)?num(n.power,n.type==='sw'?st.swPower:st.oltPower):null,0,0,n.id]);});
   while(stack.length){
     const [n,pin,dist,seg,root]=stack.pop();if(C[n.id])continue;
     let out;
@@ -344,7 +356,7 @@ const lineLayer=L.layerGroup().addTo(map),mkLayer=L.layerGroup().addTo(map),meas
 let gpsMk=null,gpsCirc=null;
 
 function pinColor(n,c){if(n.color)return n.color;if(n.type==='ont')return SCOL[status(c&&c.rx)];return (TYPES[n.type]||TYPES.mark).color;}
-function powerShort(n,c){if(!c)return '';const v=n.type==='ont'?c.rx:n.type==='olt'?c.out[0]:c.pin;if(v==null||n.type==='mark')return '';return (n.type==='ont'?'Rx ':n.type==='olt'?'Tx ':'')+v.toFixed(1)+' dBm';}
+function powerShort(n,c){if(!c)return '';const v=n.type==='ont'?c.rx:SRC.has(n.type)?c.out[0]:c.pin;if(v==null||n.type==='mark')return '';return (n.type==='ont'?'Rx ':SRC.has(n.type)?'Tx ':'')+v.toFixed(1)+' dBm';}
 function render(){
   R=compute();const {C,by}=R;
   lineLayer.clearLayers();mkLayer.clearLayers();
@@ -353,6 +365,12 @@ function render(){
     if(!(n.parent&&by[n.parent])||!visible(n))return;const p=by[n.parent],on=hl.has(n.id),c=C[n.id];
     const ll=[[p.lat,p.lng],[n.lat,n.lng]];
     L.polyline(ll,{color:'#00262b',weight:on?9:7,opacity:.4,interactive:false}).addTo(lineLayer);
+    const tc=traceMap&&(n.id in traceMap);
+    if(tc){const tcol=traceMap[n.id]!=null?coreCol(traceMap[n.id]):'#9e9e9e';
+      L.polyline(ll,{color:'#000',weight:11,opacity:.6,interactive:false}).addTo(lineLayer);
+      const tl=L.polyline(ll,{color:tcol,weight:7,opacity:1,interactive:false}).addTo(lineLayer);
+      if(traceMap[n.id]!=null)tl.bindTooltip((traceMap[n.id]+1)+' '+FIBER[traceMap[n.id]%12][0],{permanent:true,direction:'center',className:'llbl'});
+      L.polyline(ll,{weight:26,opacity:0}).addTo(lineLayer).on('click',e=>{L.DomEvent.stop(e);onLine(n,e.latlng);});return;}
     const lc=on?'#ffd600':(n.cores&&wk(n).length?coreCol(wk(n)[0]):(c&&c.pin==null?'#90a4ae':'#00b8d4'));
     const ln=L.polyline(ll,{color:lc,weight:on?6:4,opacity:.95,interactive:false}).addTo(lineLayer);
     const tt=[];if(S.set.showCable&&n.cores)tt.push(n.cores+'F'+(wk(n).length?' ('+wk(n).length+'W)':''));if(S.set.showLen&&c)tt.push(fmtD(c.seg)+(n.len!=null?'*':''));
@@ -380,6 +398,7 @@ map.on('click',e=>{
   if(tool==='meas'){addMeas({lat:e.latlng.lat,lng:e.latlng.lng});return;}
   if(tool==='cut'){toast('Tap directly on a fiber line');return;}
   if(pendingParent){pendingParent=null;hint('');}
+  if(traceMap){traceMap=null;render();}
   if(sel){sel=null;render();}
 });
 function onNode(n){
@@ -434,12 +453,13 @@ function fiberDlg(child,ll){
 }
 function newNode(type,lat,lng,parent){
   let port=0;
-  if(type==='olt'||type==='mark')parent=null;
+  if(SRC.has(type)||type==='mark')parent=null;
   if(parent){port=nextPort(parent);if(port<0){toast(parent.name+' has no free port');port=ports(parent)-1;}}
   const n={id:uid(),type,lat,lng,name:TYPES[type].pre+(S.seq++),parent:parent?parent.id:null,port,folder:S.curFolder,created:new Date().toISOString()};
   if(type==='plc')n.ratio='1x8';
   if(type==='fbt')n.ratio='70/30';
   if(type==='olt')n.power=S.set.oltPower;
+  if(type==='sw')n.power=S.set.swPower;
   if(parent){if(parent.cores){n.cores=parent.cores;n.work=wk(parent);}else if(S.set.defCores){n.cores=S.set.defCores;n.work=[];}}
   return n;
 }
@@ -475,7 +495,7 @@ function cutDialog(child,ll){
 }
 function setParent(ch,p){
   if(ch.id===p.id)return toast('Cannot connect to itself');
-  if(ch.type==='olt')return toast('OLT is the source – it has no parent');
+  if(SRC.has(ch.type))return toast(ch.name+' is a source (OLT / Switch) – it has no parent');
   if(isDesc(p,ch))return toast('That would make a loop');
   ch.parent=p.id;ch.port=Math.max(0,nextPort(p));sel=ch.id;render();toast(ch.name+' connected to '+p.name);
 }
@@ -512,7 +532,7 @@ function updPlace(){
   const p=sel&&R.by[sel];let d='';
   if(place.kind==='add'){
     $('pFolder').textContent='📁 '+folderName(S.curFolder);
-    const can=p&&addType!=='olt'&&addType!=='mark';
+    const can=p&&!SRC.has(addType)&&addType!=='mark';
     $('pConn').style.display=p?'block':'none';
     $('pConn').textContent='🔗 from '+(p?p.name:'');$('pConn').classList.toggle('off',!(connectOn&&can));
     if(p&&connectOn&&can)d=`<div id="pDist">${fmtD(hav(p,c))} from ${esc(p.name)}</div>`;
@@ -545,7 +565,7 @@ function renderInfo(){
     const bits=[t.short+(n.ratio?' '+n.ratio:'')];
     if(n.type==='ont')bits.push('Rx '+fmtP(c.rx)+' ('+STXT[status(c.rx)]+')');
     else if(n.type==='fbt')bits.push('In '+fmtP(c.pin),'Out '+(c.out[0]==null?'—':c.out[0].toFixed(2))+' / '+(c.out[1]==null?'—':c.out[1].toFixed(2))+' dBm');
-    else if(n.type==='olt')bits.push('Tx '+fmtP(c.out&&c.out[0]));
+    else if(SRC.has(n.type))bits.push('Tx '+fmtP(c.out&&c.out[0]));
     else bits.push('In '+fmtP(c.pin),'Out '+fmtP(c.out&&c.out[0]));
     if(c.dist)bits.push(fmtD(c.dist)+' from start');
     if(p&&n.cores)bits.push(cableText(n));
@@ -560,17 +580,18 @@ function renderInfo(){
       <b>Folder</b><span>${esc(folderName(n.folder))}</span>
       <b>GPS</b><span>${n.lat.toFixed(6)}, ${n.lng.toFixed(6)}</span>
       ${n.phone?`<b>Phone</b><span>${esc(n.phone)}</span>`:''}</div>
+      ${p?'<div class="btns"><button class="btn" id="iTrace">🌈 Core trace</button><button class="btn" id="iPow">📊 Power path</button></div>':''}
       <div class="imgs" id="iImgs" style="margin-top:8px"></div>`;
   }
   $('iTxt').innerHTML=`<div class="t">${esc(n.name)}${n.cut?' <span class="tag low">CUT</span>':''}</div>${desc?`<div class="d">${esc(desc)}</div>`:''}${f?`<div class="f">${esc(f)}</div>`:''}${more}<div class="muted">${fmtDate(n.created)}${big?'':' · tap for details'}</div>`;
   box.classList.add('show');
-  if(big)loadThumbs(n,$('iImgs'));
+  if(big){loadThumbs(n,$('iImgs'));if($('iTrace')){$('iTrace').onclick=e=>{e.stopPropagation();tracePage(n);};$('iPow').onclick=e=>{e.stopPropagation();reportPage(n);};}}
   adjust();
 }
 function powerCards(n,c){
   if(n.type==='mark')return '';
   const st=S.set;
-  if(n.type==='olt')return `<div class="cards"><div class="card"><div class="l">Laser power</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">Output</div><div class="v">${fmtP(c.out&&c.out[0])}</div></div></div>`;
+  if(SRC.has(n.type))return `<div class="cards"><div class="card"><div class="l">Laser power</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">Output</div><div class="v">${fmtP(c.out&&c.out[0])}</div></div></div>`;
   if(n.type==='fbt'){const f=fbtParts(n.ratio);return `<div class="cards"><div class="card"><div class="l">Input power</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">Coupler ${esc(n.ratio)} loss</div><div class="v">${fbtLoss(n,0).toFixed(2)} / ${fbtLoss(n,1).toFixed(2)}</div></div>
     <div class="card"><div class="l">Port1 ${f[0]}% out</div><div class="v">${fmtP(c.out&&c.out[0])}</div></div><div class="card"><div class="l">Port2 ${f[1]}% out</div><div class="v">${fmtP(c.out&&c.out[1])}</div></div></div>`;}
   if(n.type==='plc')return `<div class="cards"><div class="card"><div class="l">Input power</div><div class="v">${fmtP(c.pin)}</div></div><div class="card"><div class="l">Each port out</div><div class="v">${fmtP(c.out&&c.out[0])}</div></div></div><div class="muted">Splitter ${esc(n.ratio)} loss ${fmtL(nodeLoss(n))} · ports used ${(R.kids[n.id]||[]).length}/${ports(n)}</div>`;
@@ -598,9 +619,10 @@ function moreMenu(n){
   if(!n)return;
   modal(`<h3>${esc(n.name)}</h3>
    ${n.type!=='mark'?mitem('📊','Power path','Full loss budget from OLT to here','a1'):''}
+   ${n.parent&&R.by[n.parent]?mitem('🌈','Core trace (start → here)','Core colour on every segment and joint','a9'):''}
    ${n.parent&&R.by[n.parent]?mitem('〰️','Fiber cable, core & length','Fiber coming from '+esc(R.by[n.parent].name),'a8'):''}
    ${mitem('➕','Add next marker','Place a new marker connected from '+esc(n.name),'a2')}
-   ${n.type!=='olt'&&n.type!=='mark'?mitem('🔗','Connect to…','Choose the marker this fiber comes from','a3'):''}
+   ${!SRC.has(n.type)&&n.type!=='mark'?mitem('🔗','Connect to…','Choose the marker this fiber comes from','a3'):''}
    ${mitem('✋','Move marker','Move with the crosshair','a4')}
    ${mitem('◎','Move to my GPS','Set position from phone GPS','a5')}
    ${mitem('📏','Measure from here','Distance to another marker','a6')}
@@ -608,6 +630,7 @@ function moreMenu(n){
    <div class="mfoot"><button data-close>CANCEL</button></div>`);
   $('a2').onclick=()=>{closeModal();startPlace('add',{});};
   if($('a8'))$('a8').onclick=()=>{closeModal();fiberDlg(n,null);};
+  if($('a9'))$('a9').onclick=()=>{closeModal();tracePage(n);};
   if($('a1'))$('a1').onclick=()=>{closeModal();reportPage(n);};
   if($('a3'))$('a3').onclick=()=>{closeModal();pendingParent=n.id;hint('Tap the marker that '+esc(n.name)+' connects from');};
   $('a4').onclick=()=>{closeModal();startPlace('move',{id:n.id});};
@@ -624,7 +647,7 @@ function editPage(id,keep){
   const p=ed.parent&&R.by[ed.parent];
   const tb=FBT_TABLE[ed.ratio]||['',''],fp=fbtParts(ed.ratio);
   let ft='';
-  if(ed.type==='olt')ft=`<label class="f">OLT / source output power (dBm)</label><input id="ePow" type="number" step="0.1" value="${num(ed.power,S.set.oltPower)}">`;
+  if(SRC.has(ed.type))ft=`<label class="f">${ed.type==='sw'?'Switch / SFP':'OLT'} Tx output power (dBm)</label><input id="ePow" type="number" step="0.1" value="${num(ed.power,ed.type==='sw'?S.set.swPower:S.set.oltPower)}">`;
   if(ed.type==='plc')ft=`<div class="row2"><div><label class="f">Split ratio</label><select id="eRatio">${Object.keys(PLC).map(r=>`<option${r===ed.ratio?' selected':''}>${r}</option>`).join('')}</select></div><div><label class="f">Loss (dB)</label><input id="eLoss" type="number" step="0.01" placeholder="${PLC[ed.ratio]}" value="${ed.loss==null?'':ed.loss}"></div></div>`;
   if(ed.type==='fbt')ft=`<label class="f">Coupler ratio (Port1 / Port2)</label><select id="eRatio">${FBT.map(r=>`<option${r===ed.ratio?' selected':''}>${r}</option>`).join('')}</select>
      <div class="row2"><div><label class="f">Port1 ${fp[0]}% loss dB</label><input id="eL1" type="number" step="0.01" placeholder="${tb[0]}" value="${ed.l1==null?'':ed.l1}"></div><div><label class="f">Port2 ${fp[1]}% loss dB</label><input id="eL2" type="number" step="0.01" placeholder="${tb[1]}" value="${ed.l2==null?'':ed.l2}"></div></div>
@@ -669,7 +692,7 @@ function editPage(id,keep){
     ed.lat=num($('eLat').value,ed.lat);ed.lng=num($('eLng').value,ed.lng);
     const dt=new Date(($('eDate').value||'1970-01-01')+'T'+($('eTime').value||'00:00:00'));if(!isNaN(dt)&&$('eDate').value)ed.created=dt.toISOString();};
   const redraw=()=>{grab();editPage(id,true);};
-  $('eType').onchange=()=>{grab();ed.type=$('eType').value;if(ed.type==='plc'&&!PLC[ed.ratio])ed.ratio='1x8';if(ed.type==='fbt'&&!FBT_TABLE[ed.ratio])ed.ratio='70/30';if(ed.type==='olt'||ed.type==='mark'){ed.parent=null;}if(ed.type==='olt'&&ed.power==null)ed.power=S.set.oltPower;delete ed.loss;delete ed.l1;delete ed.l2;editPage(id,true);};
+  $('eType').onchange=()=>{grab();ed.type=$('eType').value;if(ed.type==='plc'&&!PLC[ed.ratio])ed.ratio='1x8';if(ed.type==='fbt'&&!FBT_TABLE[ed.ratio])ed.ratio='70/30';if(SRC.has(ed.type)||ed.type==='mark'){ed.parent=null;}if(SRC.has(ed.type)&&ed.power==null)ed.power=ed.type==='sw'?S.set.swPower:S.set.oltPower;delete ed.loss;delete ed.l1;delete ed.l2;editPage(id,true);};
   document.querySelectorAll('[data-ecc]').forEach(b=>b.onclick=()=>{grab();const v=+b.dataset.ecc;if(ed.cores===v){delete ed.cores;delete ed.work;}else{ed.cores=v;ed.work=wk(ed);}editPage(id,true);});
   document.querySelectorAll('[data-ewk]').forEach(c=>c.onchange=()=>{c.closest('.crow').classList.toggle('w',c.checked);$('eWn').textContent=document.querySelectorAll('[data-ewk]:checked').length;});
   if($('eWall'))$('eWall').onclick=()=>{grab();ed.work=Array.from({length:ed.cores},(_,i)=>i);editPage(id,true);};
@@ -711,8 +734,8 @@ function openPage(o){$('pgHead').innerHTML=o.head||`<button class="hb" id="pgBac
 function closePage(){$('page').classList.remove('show');pageBack=null;}
 function reportPage(n){
   const path=pathTo(n),st=S.set,root=path[0],rc=R.C[root.id];
-  if(root.type!=='olt'){openPage({title:'Power path',body:`<div class="box">This route is not connected to an OLT / source, so power cannot be calculated. Use ⋮ → Connect to… on the first marker.</div>`});return;}
-  let rows=`<tr><td>⚡ ${esc(root.name)} laser</td><td></td><td>${fmtP(rc.pin)}</td></tr><tr><td>&nbsp; connector</td><td>−${st.connLoss.toFixed(2)}</td><td>${fmtP(rc.out[0])}</td></tr>`,fib=0,fl=0,sp=0,spc=0,spl=0,con=st.connLoss;
+  if(!SRC.has(root.type)){openPage({title:'Power path',body:`<div class="box">This route is not connected to an OLT or Switch (source), so power cannot be calculated. Use ⋮ → Connect to… on the first marker.</div>`});return;}
+  let rows=`<tr><td>${TYPES[root.type].icon} ${esc(root.name)} Tx</td><td></td><td>${fmtP(rc.pin)}</td></tr><tr><td>&nbsp; connector</td><td>−${st.connLoss.toFixed(2)}</td><td>${fmtP(rc.out[0])}</td></tr>`,fib=0,fl=0,sp=0,spc=0,spl=0,con=st.connLoss;
   for(let i=1;i<path.length;i++){
     const x=path[i],c=R.C[x.id],l=c.seg/1000*st.lossKm;fib+=c.seg;fl+=l;
     rows+=`<tr><td class="muted">&nbsp; fiber ${fmtD(c.seg)}${x.len!=null?'*':''}${x.cores?' · '+x.cores+'F':''}${x.cores?' '+wk(x).map(k=>`<span class="cdot" style="background:${coreCol(k)}"></span>`).join(''):''}</td><td>−${l.toFixed(2)}</td><td>${fmtP(c.pin)}</td></tr>`;
@@ -730,9 +753,10 @@ function reportPage(n){
    <b>Total loss</b><span>${fmtL(rc.pin-end)}</span><b>${n.type==='ont'?'ONT Rx':'Power here'}</b><span>${fmtP(end)}</span></div>
    <div class="muted" style="margin-top:6px">* = fiber length edited by hand</div>
    ${n.type==='ont'?`<div style="margin-top:8px"><span class="tag ${status(end)}">${STXT[status(end)]}</span></div>`:''}
-   <div class="btns"><button class="btn" id="rCopy">⧉ Copy report</button></div></div>`;
+   <div class="btns"><button class="btn" id="rCopy">⧉ Copy report</button><button class="btn" id="rTrace">🌈 Core trace</button></div></div>`;
   openPage({title:'Power path → '+esc(n.name),body});
   $('rCopy').onclick=()=>copy($('pgBody').innerText);
+  $('rTrace').onclick=()=>tracePage(n);
 }
 function listPage(q){
   openPage({title:'',head:`<button class="hb" id="pgBack">←</button><input id="lq" placeholder="Search markers or lat,lng" style="border:0;background:none;flex:1" value="${esc(q||'')}"><button class="hb" id="lPoles" title="Show route points">${S._lp?'●':'○'}</button>`,body:`<div id="lres"></div>`});
@@ -752,6 +776,62 @@ function listPage(q){
   $('lq').oninput=run;$('lPoles').onclick=()=>{S._lp=!S._lp;$('lPoles').textContent=S._lp?'●':'○';run();};run();
   return $('lq');
 }
+function traceCore(path,start){
+  const out=[];let cur=start;
+  for(let i=1;i<path.length;i++){
+    const seg=path[i],prev=path[i-1];let note='';
+    if(i>1&&cur!=null){
+      const tube=Math.floor(cur/12);let col=FIBER[cur%12][0];
+      if(prev.type==='joint'&&(prev.splices||[]).length){
+        const sp=prev.splices.find(x=>x.a===col);
+        if(sp){note=`Splice ${col} → ${sp.b}`;col=sp.b;}else note=`No splice entry for ${col} – assumed ${col} to ${col.toLowerCase()}`;
+      }else if(prev.type==='joint')note=`Joint: no colour splices saved – assumed ${col} to ${col.toLowerCase()}`;
+      else if(prev.type==='fbt'||prev.type==='plc')note=`${TYPES[prev.type].short} output fiber`;
+      const ci=FIBER.findIndex(f=>f[0]===col);
+      if(ci<0||ci>11)cur=null;else{cur=ci+12*tube;if(seg.cores&&cur>=seg.cores)cur=ci<seg.cores?ci:null;}
+      if(cur==null)note+=(note?' · ':'')+'core not available in this cable';
+    }
+    if(seg.cores&&cur!=null&&cur>=seg.cores)cur=null;
+    out.push({seg,prev,core:cur,note,work:seg.cores?wk(seg).includes(cur):null});
+  }
+  return out;
+}
+function tracePage(n,start){
+  const path=pathTo(n);
+  if(path.length<2){openPage({title:'Core trace',body:`<div class="box">${esc(n.name)} has no fiber coming into it. Select an end point (e.g. an ONT) that is connected back to the start.</div>`});return;}
+  const first=path[1];
+  if(start==null){const w=wk(first);start=w.length?w[0]:0;}
+  const tr=traceCore(path,start),C=R.C;
+  let h=`<div class="box"><h5>Start core at ${esc(path[0].name)}</h5>`;
+  if(first.cores)h+=Array.from({length:first.cores},(_,i)=>`<button class="chip2${i===start?' on':''}" data-st="${i}"><span class="cdot" style="background:${coreCol(i)};margin:0"></span>${i+1} ${FIBER[i%12][0]}${wk(first).includes(i)?' ✓':''}</button>`).join('');
+  else h+=`<div class="muted">The first fiber (${esc(path[0].name)} → ${esc(first.name)}) has no cable size set. Tap that fiber line to set 1F–24F and working cores.</div>`;
+  h+=`<div class="muted" style="margin-top:6px">✓ = marked working</div></div><div class="box tl">`;
+  const nodeRow=(x,extra)=>`<div class="tn"><span class="ic" style="background:${pinColor(x,C[x.id])}">${TYPES[x.type].icon||''}</span><div><b>${esc(x.name)}</b> <span class="muted">${TYPES[x.type].short}${x.ratio?' '+x.ratio:''}</span>${extra||''}</div></div>`;
+  h+=nodeRow(path[0],`<div class="muted">Start (${SRC.has(path[0].type)?'source':'no power source'}) · Tx ${fmtP(C[path[0].id]&&C[path[0].id].pin)}</div>`);
+  let bad=0;
+  tr.forEach((t,i)=>{
+    const c=C[t.seg.id]||{},col=t.core!=null?coreCol(t.core):'#5f6368';
+    if(t.work===false)bad++;
+    h+=`<div class="ts"><div class="bar"><i style="background:${col}"></i></div><div class="tx">
+      ${t.note?`<div style="color:#ffe082">↳ ${esc(t.note)}</div>`:''}
+      <b style="color:#fff">${t.core!=null?`<span class="cdot" style="background:${col}"></span>Core ${t.core+1} ${FIBER[t.core%12][0]}${t.seg.cores>12?' (tube '+(t.core<12?'1':'2')+')':''}`:'Core unknown'}</b>
+      ${t.work===true?' <span class="tag ok">working</span>':t.work===false?' <span class="tag warn">not marked working</span>':''}<br>
+      ${t.seg.cores?t.seg.cores+'F cable':'cable not set'} · ${fmtD(c.seg)}${t.seg.len!=null?' (edited)':''} · ${fmtD(c.dist)} from start
+      ${wk(t.seg).length?`<br>Working: ${wk(t.seg).map(k=>`<span class="cdot" style="background:${coreCol(k)}"></span>${k+1}`).join(' ')}`:''}
+    </div></div>`;
+    const x=t.seg,last=i===tr.length-1;
+    const pw=x.type==='ont'?'Rx '+fmtP(c.rx):'In '+fmtP(c.pin);
+    h+=nodeRow(x,`<div class="muted">${pw}${last&&t.core!=null?` · arrives on <b style="color:#fff">${t.core+1} ${FIBER[t.core%12][0]}</b>`:''}${x.type==='joint'&&(x.splices||[]).length&&!last?' · '+x.splices.length+' splices saved':''}</div>`);
+  });
+  h+=`</div><div class="box"><div class="kv"><b>Total fiber</b><span>${fmtD(C[n.id].dist)}</span><b>Segments</b><span>${tr.length}</span><b>Core at end</b><span>${tr[tr.length-1].core!=null?(tr[tr.length-1].core+1)+' '+FIBER[tr[tr.length-1].core%12][0]:'—'}</span></div>
+   ${bad?`<div class="muted" style="margin-top:6px;color:#ffe082">${bad} segment(s): this core is not switched on as Working.</div>`:''}
+   <div class="btns"><button class="btn p" id="trMap">🗺 Show on map</button><button class="btn" id="trCopy">⧉ Copy</button></div></div>`;
+  openPage({title:'Core trace → '+esc(n.name),body:h});
+  document.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>tracePage(n,+b.dataset.st));
+  $('trCopy').onclick=()=>copy($('pgBody').innerText);
+  $('trMap').onclick=()=>{traceMap={};tr.forEach(t=>traceMap[t.seg.id]=t.core);closePage();sel=n.id;render();fitPath(path);toast('Core route shown – tap the map to clear');};
+}
+function fitPath(path){map.fitBounds(L.latLngBounds(path.map(x=>[x.lat,x.lng])).pad(.2),{maxZoom:19});}
 function summaryPage(){
   const C=R.C,onts=S.nodes.filter(n=>n.type==='ont');let tot=0,j=0,cut=0,sp=0;
   S.nodes.forEach(n=>{if(C[n.id])tot+=C[n.id].seg;if(n.type==='joint'){j++;if(n.cut)cut++;}if(n.type==='plc'||n.type==='fbt')sp++;});
@@ -764,7 +844,8 @@ function summaryPage(){
 function settingsPage(){
   const s=S.set;
   openPage({title:'Settings',body:`<div class="box"><h5>Power budget</h5>
-   <div class="row2"><div><label class="f">OLT Tx power (dBm)</label><input id="sP" type="number" step="0.1" value="${s.oltPower}"></div><div><label class="f">Wavelength (nm)</label><select id="sW">${Object.keys(WL).map(w=>`<option${w===s.wl?' selected':''}>${w}</option>`).join('')}</select></div></div>
+   <div class="row2"><div><label class="f">OLT Tx power (dBm)</label><input id="sP" type="number" step="0.1" value="${s.oltPower}"></div><div><label class="f">Switch / SFP Tx (dBm)</label><input id="sSW" type="number" step="0.1" value="${s.swPower}"></div></div>
+   <div class="row2"><div><label class="f">Wavelength (nm)</label><select id="sW">${Object.keys(WL).map(w=>`<option${w===s.wl?' selected':''}>${w}</option>`).join('')}</select></div></div>
    <div class="row2"><div><label class="f">Fiber loss (dB/km)</label><input id="sK" type="number" step="0.01" value="${s.lossKm}"></div><div><label class="f">Splice loss / joint (dB)</label><input id="sS" type="number" step="0.01" value="${s.spliceLoss}"></div></div>
    <div class="row2"><div><label class="f">Connector loss (dB)</label><input id="sC" type="number" step="0.05" value="${s.connLoss}"></div><div><label class="f">Safety margin (dB)</label><input id="sM" type="number" step="0.5" value="${s.margin}"></div></div>
    <div class="row2"><div><label class="f">ONT sensitivity (dBm)</label><input id="sN" type="number" step="0.5" value="${s.sens}"></div><div><label class="f">ONT overload (dBm)</label><input id="sO" type="number" step="0.5" value="${s.overload}"></div></div>
@@ -777,7 +858,7 @@ function settingsPage(){
   $('sW').onchange=()=>{$('sK').value=WL[$('sW').value];};
   $('sChart').onclick=chart;
   $('sOk').onclick=()=>{const old=s.oltPower;
-    Object.assign(s,{oltPower:num($('sP').value,5),wl:$('sW').value,lossKm:num($('sK').value,.28),spliceLoss:num($('sS').value,.1),connLoss:num($('sC').value,.5),margin:num($('sM').value,3),
+    Object.assign(s,{oltPower:num($('sP').value,5),swPower:num($('sSW').value,0),wl:$('sW').value,lossKm:num($('sK').value,.28),spliceLoss:num($('sS').value,.1),connLoss:num($('sC').value,.5),margin:num($('sM').value,3),
       sens:num($('sN').value,-27),overload:num($('sO').value,-8),showLen:$('sL').value==='1',showLabels:$('sPL').value==='1',recInt:Math.max(2,num($('sR').value,20)),defCores:+$('sDC').value||0,showCable:$('sSC').value==='1',recAcc:Math.max(5,num($('sA').value,30))});
     S.nodes.forEach(n=>{if(n.type==='olt'&&num(n.power,old)===old)n.power=s.oltPower;});
     $('xLbl').classList.toggle('on',s.showLabels);closePage();render();toast('Settings saved');};
@@ -797,11 +878,13 @@ function coreChart(){
 }
 function help(){
   openPage({title:'Help',body:`<div class="box" style="line-height:1.55;font-size:14px">
-  <p><b>Add a marker:</b> press <b>+📍</b>, move the map until the crosshair is on the spot (or press ◎ GPS), choose the type on the left (Joint, Coupler, Splitter, ONT, OLT, Pole, Marker) and press <b>OK</b>.</p>
+  <p><b>Start point:</b> the route starts from an <b>OLT</b> or a <b>Switch / SFP</b> – both are power sources. Set their Tx power in Edit (defaults in Settings).</p>
+  <p><b>Add a marker:</b> press <b>+📍</b>, move the map until the crosshair is on the spot (or press ◎ GPS), choose the type on the left (OLT, Switch, Joint, Coupler, Splitter, ONT, Pole, Marker) and press <b>OK</b>.</p>
   <p><b>Fiber route:</b> when a marker is selected, the new marker is connected from it (🔗 chip at the top – tap it to switch off). The fiber distance is measured from GPS coordinates.</p>
   <p><b>Coupler / splitter power:</b> tap a coupler – you see input power and the output of Port1 and Port2. For the next marker, choose which port it uses in ✏️ Edit.</p>
   <p><b>Fiber cut:</b> press ✂️ on the left and tap the fiber line at the cut, or stand at the cut and press <b>At my GPS</b>. A joint is inserted and its splice loss is added. In Edit you can record colour splices (Blue to blue, White to blue…).</p>
   <p><b>Cable &amp; cores:</b> tap a fiber line (or ⋮ → Fiber cable, core &amp; length) and choose 1F, 2F, 4F, 6F, 12F or 24F. All core colours are listed below – switch <b>Working</b> on beside each core in use (e.g. 4F with cores 1 and 2 working). The line is drawn in the first working core colour and shows e.g. “4F (2W)”. Type the real cable length if it differs from the GPS line – distance and loss use it.</p>
+  <p><b>Core trace:</b> select the end point (e.g. ONT) → ⋮ → <b>Core trace</b>. It follows the core from the start through every joint (using the colour splices saved in each joint, e.g. Blue to orange) and shows the core colour on every segment. <b>Show on map</b> colours the route.</p>
   <p><b>Walk &amp; record:</b> select the start marker, press ⏺ and walk the cable route.</p>
   <p><b>Distance start → end:</b> each marker shows its distance from the OLT. 📏 measures between any two points.</p>
   <p><b>Backup:</b> ☰ → Data backup. Export regularly – data is stored on this phone.</p></div>`});
@@ -827,7 +910,7 @@ function drawer(){
    <div class="dsec">Help &amp; Feedback</div>
    <div class="ditem" id="dSet"><span class="ic">⚙</span><span class="tx">Settings</span></div>
    <div class="ditem" id="dHelp"><span class="ic">❓</span><span class="tx">Help</span></div>
-   <div class="ditem" id="dAbout"><span class="ic">ⓘ</span><span class="tx">About<small>SLVS FTTH Map 2.2</small></span></div>`;
+   <div class="ditem" id="dAbout"><span class="ic">ⓘ</span><span class="tx">About<small>SLVS FTTH Map 2.4</small></span></div>`;
   $('drawer').classList.add('show');$('scrim').classList.add('show');
   const go=f=>()=>{closeDrawer();f();};
   $('dBk').onclick=go(backupMenu);$('dLast').onclick=go(backupMenu);
@@ -838,7 +921,7 @@ function drawer(){
   document.querySelectorAll('[data-fr]').forEach(c=>c.onclick=()=>folderMenu(c.dataset.fr));
   $('dAddF').onclick=()=>folderName_dlg(null);
   $('dSum').onclick=go(summaryPage);$('dChart').onclick=go(chart);$('dCore').onclick=go(coreChart);$('dSet').onclick=go(settingsPage);$('dHelp').onclick=go(help);
-  $('dAbout').onclick=go(()=>modal(`<h3>SLVS FTTH Map</h3><p>Version 2.2</p><p class="muted">FTTH route mapping with GPS, fiber distance, FBT coupler / PLC splitter power budget and fiber-cut joints.</p><p class="muted">Maps © OpenStreetMap contributors, imagery © Esri.</p><div class="mfoot"><button data-close>OK</button></div>`));
+  $('dAbout').onclick=go(()=>modal(`<h3>SLVS FTTH Map</h3><p>Version 2.4</p><p class="muted">FTTH route mapping with GPS, fiber distance, FBT coupler / PLC splitter power budget and fiber-cut joints.</p><p class="muted">Maps © OpenStreetMap contributors, imagery © Esri.</p><div class="mfoot"><button data-close>OK</button></div>`));
 }
 function closeDrawer(){$('drawer').classList.remove('show');$('scrim').classList.remove('show');}
 $('scrim').onclick=closeDrawer;
@@ -916,8 +999,9 @@ function recordStep(){
 function toggleRec(){
   if(rec){rec=false;$('xRec').classList.remove('rec');toast('Recording stopped · '+recCount+' points · '+fmtD(recDist));render();return;}
   if(!sel){modal(`<h3>Walk &amp; record route</h3><p class="muted">Select the start marker first (OLT, joint or coupler), or create the start at your GPS position.</p>
-     ${mitem('⚡','Start with OLT at my GPS','','rS1')}${mitem('•','Start with a route point at my GPS','','rS2')}<div class="mfoot"><button data-close>CANCEL</button></div>`);
+     ${mitem('⚡','Start with OLT at my GPS','','rS1')}${mitem('⇄','Start with Switch at my GPS','','rS3')}${mitem('•','Start with a route point at my GPS','','rS2')}<div class="mfoot"><button data-close>CANCEL</button></div>`);
     $('rS1').onclick=()=>{closeModal();startGps(p=>{addNode('olt',p.lat,p.lng,{parent:null});toggleRec();});};
+    $('rS3').onclick=()=>{closeModal();startGps(p=>{addNode('sw',p.lat,p.lng,{parent:null});toggleRec();});};
     $('rS2').onclick=()=>{closeModal();startGps(p=>{addNode('pole',p.lat,p.lng,{parent:null});toggleRec();});};return;}
   startGps();rec=true;follow=true;$('bLoc').classList.add('on');recDist=0;recCount=0;
   const s=R.by[sel];recLast=s?{lat:s.lat,lng:s.lng}:null;$('xRec').classList.add('rec');
