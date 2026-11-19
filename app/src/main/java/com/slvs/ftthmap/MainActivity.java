@@ -59,6 +59,7 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
                 if ("appassets.androidplatform.net".equals(u.getHost())) return false;
+                // tel:, sms:, Google Maps navigation -> open in phone apps
                 try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) { }
                 return true;
             }
@@ -76,10 +77,14 @@ public class MainActivity extends Activity {
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = cb;
+                boolean image = false;
+                for (String t : p.getAcceptTypes()) if (t != null && t.startsWith("image")) image = true;
+                boolean multi = p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE;
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
                 i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("*/*");
-                try { startActivityForResult(Intent.createChooser(i, "Import backup"), REQ_FILE); }
+                i.setType(image ? "image/*" : "*/*");
+                if (multi) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                try { startActivityForResult(Intent.createChooser(i, image ? "Add photo" : "Import backup"), REQ_FILE); }
                 catch (Exception e) { fileCallback = null; return false; }
                 return true;
             }
@@ -125,7 +130,13 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int code, int result, Intent data) {
         if (code == REQ_FILE && fileCallback != null) {
             Uri[] r = null;
-            if (result == RESULT_OK && data != null && data.getData() != null) r = new Uri[]{data.getData()};
+            if (result == RESULT_OK && data != null) {
+                if (data.getClipData() != null) {
+                    int n = data.getClipData().getItemCount();
+                    r = new Uri[n];
+                    for (int k = 0; k < n; k++) r[k] = data.getClipData().getItemAt(k).getUri();
+                } else if (data.getData() != null) r = new Uri[]{data.getData()};
+            }
             fileCallback.onReceiveValue(r);
             fileCallback = null;
         }
@@ -135,10 +146,24 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
 
     @Override
-    public void onBackPressed() { if (web.canGoBack()) web.goBack(); else super.onBackPressed(); }
+    public void onBackPressed() {
+        // let the app close dialogs / pages / placement first
+        web.evaluateJavascript("(window.slvsBack&&window.slvsBack())?'1':'0'", v -> {
+            if (v == null || !v.contains("1")) finish();
+        });
+    }
 
     /** Called from the web app for Export (JSON / KML / CSV). */
     class Bridge {
+        @JavascriptInterface
+        public void copy(final String text) {
+            runOnUiThread(() -> {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("SLVS FTTH", text));
+                Toast.makeText(MainActivity.this, "Copied", Toast.LENGTH_SHORT).show();
+            });
+        }
+
         @JavascriptInterface
         public void saveFile(final String name, final String content) {
             runOnUiThread(() -> {
